@@ -52,6 +52,6 @@ if __name__=='__main__':
     agent=Myagent()
     Messages=[
         {"role":"system","content":"你是一个有用的助手"},
-        {"role":"user","content":"写一个快速排序算法"}
+        {"role":"user","content":"一阶线性电路的全响应怎么求？"}
     ]
     agent.think(messages=Messages)
