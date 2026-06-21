@@ -19,5 +19,6 @@ def test_init_with_args():
 
 if __name__ == '__main__':
     test_init_with_env_vars()
+    test_init_with_args()
 
 

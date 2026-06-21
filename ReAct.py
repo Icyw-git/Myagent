@@ -20,10 +20,10 @@ class Myagent:
         self.base_url= base_url if base_url else os.getenv('LLM-BASE-URL')
         self.model_id= model_id if model_id else os.getenv('LLM-MODEL-ID')
         self.timeout= timeout if timeout else int(os.getenv('LLM-TIMEOUT'))
-        self.client= OpenAI(api_key=self.api_key,base_url=self.base_url,timeout=self.timeout)
+        self.client= OpenAI(api_key=self.api_key,base_url=self.base_url,timeout=self.timeout) #初始化llm客户端
         
     def think(self,messages:List[Dict[str,str]],temperature:float=0):
-        print(f'正在调用{self.model_id}进行思考...')
+        print(f'正在调用{self.model_id}进行思考...') #使用openai的格式
         try:
             response=self.client.chat.completions.create(
                 model=self.model_id,
@@ -36,7 +36,7 @@ class Myagent:
             print(f'LLM响应成功：')
             collected_content=[]
             for chunk in response:
-                if not chunk.choices:
+                if not chunk.choices: #若无内容就跳过
                     continue
                 content=chunk.choices[0].delta.content or ''
                 print(content,end='',flush=True) #end=''取消自动换行，flush=True强制刷新输出缓冲区，使得内容能够立即显示在控制台上。
@@ -104,7 +104,7 @@ class ToolExecutor:
     def __init__(self):
         self.tools:Dict[str,Dict[str,Any]]={}
 
-    def register_tool(self,name:str,description:str,func:callable):
+    def register_tool(self,name:str,description:str,func:callable): #工具注册器
 
         if name in self.tools:
             print(f'警告：工具{name}已存在，将被覆盖。')
@@ -113,12 +113,12 @@ class ToolExecutor:
 
         print(f'工具{name}注册成功。')
 
-    def getTool(self,name:str)->callable:
+    def getTool(self,name:str)->callable: #获取工具的函数
         if name not in self.tools:
             raise ValueError(f'工具{name}未注册。')
         return self.tools[name]['func']
     
-    def getAvailableTools(self)->str:
+    def getAvailableTools(self)->str: #获取可用的工具表
 
         return '\n'.join([f"{name}:{info['description']}" for name,info in self.tools.items()])
     
@@ -154,21 +154,25 @@ class ReActAgent:
     def __init__(self,llm_client:Myagent,tool_executor:ToolExecutor,max_iters:int=5):
         self.llm_client=llm_client
         self.tool_executor=tool_executor
-        self.max_iters=max_iters
-        self.history=[]
+        self.max_iters=max_iters #最大循环轮数
+        self.history=[] #对话历史
 
     def run (self,question:str):
         self.history=[]
 
         current_step=0
-        print(f'---循环轮数：第{current_step}轮---')
         while current_step<self.max_iters:
+            current_step+=1
+            print(f'---循环轮数：第{current_step}轮---')
+
             tool_desc=self.tool_executor.getAvailableTools()
             history_str='\n'.join(self.history)
-            prompt=REACT_PROMPT_TEMPLATE.format(question=question,tools=tool_desc,history=history_str)
+            prompt=REACT_PROMPT_TEMPLATE.format(question=question,tools=tool_desc,history=history_str) #使用提示词将question,history,tools进行格式化
+
 
             messages=[{'role':'user','content':prompt}]
-            response_text=self.llm_client.think(messages=messages)
+            response_text=self.llm_client.think(messages=messages) #调用Llm客户端
+
 
             if not response_text:
                 print('错误：LLM未能返回有效结果。')
@@ -182,23 +186,24 @@ class ReActAgent:
                 print(f'警告：未能解析有效的action，流程中断。')
                 break
 
-            if action.startswith('Finish'):
+            if action.startswith('Finish'): #终止条件，当llm认为已经得出答案的时候终止
                 final_answer=re.match(r"Finish\[(.*)\]",action).group(1)
                 print(f'最终答案：{final_answer}')
                 return final_answer
 
-            tool_name,tool_input=self._parse_action(action)
+            tool_name,tool_input=self._parse_action(action) #获取llm所需的工具和工具输入
             if not tool_name or not tool_input:
                 continue
 
             print(f'行动：{tool_name}[{tool_input}]')
-            tool_function=self.tool_executor.getTool(tool_name)
+            tool_function=self.tool_executor.getTool(tool_name) #根据工具名寻找工具函数
             if not tool_function:
                 observation=f'错误：未找到名为 {tool_name} 的工具。'
             else:
                 observation=tool_function(tool_input)
 
             print(f'观察：{observation}')
+            #将该步所用的action和observation添加到历史中，以便下一轮的prompt能够包含这些信息
             self.history.append(f'Action: {action}')
             self.history.append(f'Observation: {observation}')
 
@@ -208,7 +213,6 @@ class ReActAgent:
 
 
 
-        # (这些方法是 ReActAgent 类的一部分)
     @staticmethod
     def _parse_output(text: str):
             """解析LLM的输出，提取Thought和Action。
@@ -268,4 +272,4 @@ if __name__=='__main__':
 
 
     ReAct=ReActAgent(agent,toolExecutor,max_iters=5)
-    ReAct.run('请问今天上海的温度是多少？')
+    ReAct.run('今天上海的天气如何？')
