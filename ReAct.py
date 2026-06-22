@@ -178,7 +178,8 @@ class ReActAgent:
                 print('错误：LLM未能返回有效结果。')
                 break
 
-            thought,action=self._parse_output(response_text)
+            thought,action=self._parse_output(response_text) #使用文本解析器将返回的内容转换为action和thought
+
 
             if thought:
                 print(f'思考：{thought}')
