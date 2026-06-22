@@ -26,3 +26,15 @@ def test_get_available_tools_format():
     assert '问候' in output
     assert ':' in output
 
+
+def test_empty_tool():
+    executor=ToolExecutor()
+
+    output=executor.getAvailableTools()
+    assert output ==''
+
+
+if __name__=='__main__':
+    test_register_and_get_tool()
+    test_get_available_tools_format()
+    test_empty_tool()
