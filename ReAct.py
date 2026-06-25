@@ -26,7 +26,7 @@ class Myagent:
         print(f'正在调用{self.model_id}进行思考...') #使用openai的格式
         try:
             response=self.client.chat.completions.create(
-                model=self.model_id,
+                model=self.model_id, #使用的模型名称
                 messages=messages,
                 temperature=temperature,
                 stream=True,
@@ -54,7 +54,7 @@ class Myagent:
 
 
 
-#定义搜索工具
+#定义搜索工具 这里使用了google SerpApi来进行搜索，用户需要在.env文件中设置SERPAPI-API-KEY环境变量。
 def search(query:str)->str:
 
     print(f'正在执行{query}的搜索...')
@@ -118,7 +118,7 @@ class ToolExecutor:
             raise ValueError(f'工具{name}未注册。')
         return self.tools[name]['func']
     
-    def getAvailableTools(self)->str: #获取可用的工具表
+    def getAvailableTools(self)->str: #获取可用的工具表，这是给llm进行工具选择，在调用Llm时让llm选择适合的工具
 
         return '\n'.join([f"{name}:{info['description']}" for name,info in self.tools.items()])
     
@@ -127,7 +127,7 @@ class ToolExecutor:
 
 
 #ReAct agent的编码实现
-#系统提示词设计
+#系统提示词设计：这里的提示词设计是为了让llm能够理解它的角色和任务，并且能够按照指定的格式进行输出。提示词中包含了可用工具的描述、用户的问题以及对话历史，以便llm能够根据这些信息进行思考和行动。
 
 REACT_PROMPT_TEMPLATE='''
 请注意，你是一个有能力调用外部工具的智能助手。
@@ -152,8 +152,8 @@ History: {history}
 
 class ReActAgent:
     def __init__(self,llm_client:Myagent,tool_executor:ToolExecutor,max_iters:int=5):
-        self.llm_client=llm_client
-        self.tool_executor=tool_executor
+        self.llm_client=llm_client #llm客户端
+        self.tool_executor=tool_executor #工具管理器
         self.max_iters=max_iters #最大循环轮数
         self.history=[] #对话历史
 
@@ -209,7 +209,7 @@ class ReActAgent:
             self.history.append(f'Observation: {observation}')
 
         print('已达最大循环步数，循环结束。')
-        return None
+        return None #不需要返回值，这里使用的是return none
 
 
 
