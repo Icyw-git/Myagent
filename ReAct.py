@@ -3,51 +3,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from typing import List ,Dict,Any
 from serpapi import SerpApiClient
+from llm_client import Myagent
 import re
 
 
 
 load_dotenv() #使用load_dotenv()函数加载环境变量，该环境变量作用域为当前进程，且只在当前进程中有效。该函数会从当前目录下的.env文件中读取环境变量，并将其加载到系统环境变量中。
 
-class Myagent:
-    '''
-    Myagent类用于与openai的api进行交互，返回模型的响应结果。
-    这是自定义的一个类，主要用于封装与openai的api交互的逻辑，方便在其他地方调用。
-    '''
-
-    def __init__(self,api_key:str =None,base_url:str=None,model_id:str=None,timeout:int=60):
-        self.api_key= api_key if api_key else os.getenv('LLM-API-KEY')
-        self.base_url= base_url if base_url else os.getenv('LLM-BASE-URL')
-        self.model_id= model_id if model_id else os.getenv('LLM-MODEL-ID')
-        self.timeout= timeout if timeout else int(os.getenv('LLM-TIMEOUT'))
-        self.client= OpenAI(api_key=self.api_key,base_url=self.base_url,timeout=self.timeout) #初始化llm客户端
-        
-    def think(self,messages:List[Dict[str,str]],temperature:float=0):
-        print(f'正在调用{self.model_id}进行思考...') #使用openai的格式
-        try:
-            response=self.client.chat.completions.create(
-                model=self.model_id, #使用的模型名称
-                messages=messages,
-                temperature=temperature,
-                stream=True,
-
-            ) #使用流式输出，模型会返回内容块，而不是一次性返回完整的响应，这样可以更快地获取到模型的响应内容，并且在控制台上实时显示出来。
-
-            print(f'LLM响应成功：')
-            collected_content=[]
-            for chunk in response:
-                if not chunk.choices: #若无内容就跳过
-                    continue
-                content=chunk.choices[0].delta.content or ''
-                print(content,end='',flush=True) #end=''取消自动换行，flush=True强制刷新输出缓冲区，使得内容能够立即显示在控制台上。
-                collected_content.append(content)
-
-            print() #默认的end参数是换行符，这里调用print()函数来输出一个换行符，以确保在输出完内容后换行。
-            return ''.join(collected_content) #将收集到的内容块连接成一个完整的字符串，并返回给调用者。
-        
-        except Exception as e:
-            print(f'LLM响应失败：{e}')
-            return 
         
 
 
@@ -171,7 +133,7 @@ class ReActAgent:
 
 
             messages=[{'role':'user','content':prompt}]
-            response_text=self.llm_client.think(messages=messages) #调用Llm客户端
+            response_text=self.llm_client.think(messages=messages) or '' #调用Llm客户端
 
 
             if not response_text:
@@ -188,6 +150,12 @@ class ReActAgent:
                 break
 
             if action.startswith('Finish'): #终止条件，当llm认为已经得出答案的时候终止
+                # ==================== [错误记录 #6] re.DOTALL 让 . 匹配换行符 ====================
+                # 知识点：re.match/re.search 默认模式下，. 不匹配换行符 \n（等价于 [^\n]）。
+                # LLM 输出的 Finish[答案] 中答案经常包含多行（如带换行的穿搭建议），
+                # 没有 re.DOTALL 时 (.*) 遇到第一个 \n 就停止，匹配不到结尾的 ]，返回 None →
+                # AttributeError: 'NoneType' object has no attribute 'group'
+                # 修复：加 re.DOTALL（或 re.S），让 . 匹配包括 \n 在内的所有字符。
                 final_answer=re.match(r"Finish\[(.*)\]",action,re.DOTALL).group(1)
                 print(f'最终答案：{final_answer}')
                 return final_answer
@@ -209,6 +177,13 @@ class ReActAgent:
             self.history.append(f'Observation: {observation}')
 
         print('已达最大循环步数，循环结束。')
+        # ==================== [错误记录 #7] ReActAgent.run 返回 None 的连锁反应 ====================
+        # 知识点：返回值类型一致性——如果函数正常路径返回 str，异常/兜底路径返回 None，
+        # 调用方若不加判断就把返回值直接塞进 list，后续 str.join() 会报 TypeError。
+        # 错误链：ReAct 跑满轮次 → return None → HybridAgent 里 history.append(None) → '\n'.join(history) 崩溃
+        # 修复方向（二选一）：
+        #   a) 这里改为 return ''（让 ReActAgent 保证返回 str）
+        #   b) 调用方加 or '' 兜底（HybridAgent 已做）
         return None #不需要返回值，这里使用的是return none
 
 
