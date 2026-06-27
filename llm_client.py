@@ -2,6 +2,9 @@ import os
 from typing import List,Dict
 from openai import OpenAI
 from dotenv import load_dotenv
+import re
+import json
+
 
 load_dotenv()
 
@@ -45,7 +48,38 @@ class Myagent:
             print(f'LLM响应失败：{e}')
             return
 
+    def think_json(self,messages: List[Dict[str, str]], temperature: float = 0):
+        print(f'正在调用{self.model_id}进行思考,返回json格式...')
+        try:
+            response=self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages,
+                temperature=temperature,
+                stream=True,
+            ) #使用流式输出，之后尝试解析json格式
+
+            collected_content = []
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                content = chunk.choices[0].delta.content or ''
+                print(content, end='', flush=True)
+                collected_content.append(content)
+
+            print()
+            full_text= ''.join(collected_content)
+            match=re.search(r'\{.*\}',full_text,re.DOTALL) #匹配json格式的内容
+            if match:
+                return json.loads(match.group())
+
+        except Exception as e:
+            print(f'LLM响应失败：{e}')
+            return
+
+
+
+
 if __name__ == '__main__':
     llm_client = Myagent()
     prompt=[{'role':'user','content':'请帮我规划一下去武汉的旅游路线。'}]
-    llm_client.think(prompt)
+    print(llm_client.think_json(prompt))

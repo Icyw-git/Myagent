@@ -188,7 +188,7 @@ class HybridAgent:
 if __name__ == '__main__':
     myagent = Myagent()
     agent=HybridAgent(myagent)
-    agent.run("帮我规划一下去南京的旅游路线。")
+    agent.run("请帮我规划一下去武汉的旅游路线。")
 
 
 
