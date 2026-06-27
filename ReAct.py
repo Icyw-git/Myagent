@@ -188,7 +188,7 @@ class ReActAgent:
                 break
 
             if action.startswith('Finish'): #终止条件，当llm认为已经得出答案的时候终止
-                final_answer=re.match(r"Finish\[(.*)\]",action).group(1)
+                final_answer=re.match(r"Finish\[(.*)\]",action,re.DOTALL).group(1)
                 print(f'最终答案：{final_answer}')
                 return final_answer
 

@@ -1,5 +1,5 @@
-from ReAct import Myagent,ToolExecutor,ReActAgent
-from PlanAndSolve import Planner, EXECUTOR_PROMPT_TEMPLATE
+from ReAct import Myagent,ToolExecutor,ReActAgent,search
+from PlanAndSolve import Planner
 from dotenv import load_dotenv
 import ast
 
@@ -92,16 +92,17 @@ class HybridAgent:
     def __init__(self,llm_client:Myagent,max_depth:int=3):
         self.llm_client = llm_client
         self.tool_executor = ToolExecutor()
+        self.tool_executor.register_tool("search", '一个搜索工具，可以根据用户的查询返回相关的搜索结果。',search)
         self.planner = myPlanner(self.llm_client,self.tool_executor)
         self.ReActAgent = ReActAgent(self.llm_client,self.tool_executor)
         self.max_depth = max_depth
 
 
-    def run(self,question:str,depth:int=1):
+    def run(self,question:str,depth:int=1,current_best:str=None):
         if depth>self.max_depth:
             print('达到递归最大深度，停止运行。')
-            return
-        print(f'\n--- 开始处理问题 ---\n问题：{question}，第{depth}次尝试')
+            return current_best if current_best else None
+        print(f'\n--- 开始处理问题 ---\n问题：{question}\n--- 第{depth}次尝试 ---\n')
         plan=self.planner.plan(question)
 
         if not plan:
@@ -111,7 +112,8 @@ class HybridAgent:
 
         for i,iteration in enumerate(plan):
             print(f'\n-> 正在执行步骤 {i+1}/{len(plan)}: {iteration["step"]}')
-            prompt=EXECUTOR_PROMPT_TEMPLATE.format(question=question,plan=plan,history=history,current_step=iteration.get('step',''),tools=self.tool_executor.getAvailableTools(),tool_hint=f"建议工具：{iteration.get('tool','')},输入：{iteration.get('input','')}" if 'tool' in iteration else "")
+            history_str='\n'.join(history) if history else ''
+            prompt=EXECUTOR_PROMPT_TEMPLATE.format(question=question,history=history,current_step=iteration.get('step',''),tools=self.tool_executor.getAvailableTools(),tool_hint=f"建议工具：{iteration.get('tool','')},输入：{iteration.get('input','')}" if 'tool' in iteration else "")
 
             messages=[{'role':'user','content':prompt}]
             if 'tool' not in iteration:
@@ -138,17 +140,18 @@ class HybridAgent:
         response=self.llm_client.think(messages)
         if '无需改进' in response:
             print(f'最终答案：{final_answer}')
-            return
+            return final_answer
 
-        self.run(question,depth+1)
-        print(f'达到递归最大深度，最终答案为：{final_answer}')
+        print(f'--- 结果未达到要求，需要改进，重新规划。---')
+        return self.run(question,depth+1,final_answer)
+
 
 
 
 if __name__ == '__main__':
     myagent = Myagent()
     agent=HybridAgent(myagent)
-    agent.run("请帮我规划一下去武汉的旅游路线。")
+    agent.run("帮我查询最近的上海的天气，规划我的穿搭。")
 
 
 
