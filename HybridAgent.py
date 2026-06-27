@@ -68,11 +68,11 @@ REFLECTION_TEMPLATE="""
 如果答案有误或不完整，回复「需要改进：」并简要说明原因。
 """
 
-class myPlanner(Planner): #重写planner,使得planner可以使用工具列表
+class myPlanner: #重写planner,使得planner可以使用工具列表
     def __init__(self,llm_client:Myagent,tool_executor:ToolExecutor):
-        super().__init__(llm_client)
+        self.llm_client=llm_client
         self.tool_executor=tool_executor
-        self.tool_desc=tool_executor.getAvailableTools()
+        self.tool_desc=self.tool_executor.getAvailableTools() #获取工具列表描述
 
     def plan(self,question:str):
         prompt=myPlanner_PROMPT_TEMPLATE.format(question=question,tool_desc=self.tool_desc)

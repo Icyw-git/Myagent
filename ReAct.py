@@ -1,10 +1,11 @@
 import os 
 from openai import OpenAI
 from dotenv import load_dotenv
-from typing import List ,Dict,Any
+from typing import List ,Dict,Any,Optional,Literal
 from serpapi import SerpApiClient
 from llm_client import Myagent
 import re
+from pydantic import BaseModel,Field
 
 
 
@@ -212,6 +213,104 @@ class ReActAgent:
 
 
 
+class ReActOutput(BaseModel):
+    thought: str
+    action_type:Literal['tool_call','finish']
+    tool_name: Optional[str] = None
+    tool_input: Optional[str] = None
+    final_answer: Optional[str] = None
+
+REACT_PROMPT_TEMPLATE1="""
+你是一个能调用外部工具的助手。
+
+可用工具：
+{tools}
+
+你必须**只返回一个 JSON 对象**，格式如下：
+
+如果是调用工具：
+{{"thought": "你的推理", "action_type": "tool_call", "tool_name": "工具名", "tool_input": "工具输入"}}
+
+如果是输出最终答案：
+{{"thought": "你的推理", "action_type": "finish", "final_answer": "最终答案"}}
+
+现在回答：
+Question: {question}
+History: {history}
+"""
+
+class ReActAgentplus:
+    def __init__(self,llm_client:Myagent,tool_executor:ToolExecutor,max_iters:int=5):
+        self.llm_client=llm_client #llm客户端
+        self.tool_executor=tool_executor #工具管理器
+        self.max_iters=max_iters #最大循环轮数
+        self.history=[] #对话历史
+
+    def run(self,question:str):
+        self.history=[]
+        current_step=0
+        while current_step<self.max_iters:
+            current_step+=1
+            print(f'---循环轮数：第{current_step}轮---')
+
+            tool_desc=self.tool_executor.getAvailableTools()
+            history_str='\n'.join(self.history)
+            prompt=REACT_PROMPT_TEMPLATE1.format(question=question,tools=tool_desc,history=history_str) #使用提示词将question,history,tools进行格式化
+
+
+            messages=[{'role':'user','content':prompt}]
+            response_json= self.llm_client.think_json(messages=messages) or '' #调用Llm客户端
+
+
+            if not response_json:
+                print('错误：LLM未能返回有效结果。')
+                break
+
+            result=ReActOutput.model_validate(response_json)
+
+            thought=result.thought
+            action_type=result.action_type
+            tool_name=result.tool_name
+            tool_input=result.tool_input
+
+            if thought:
+                print(f'思考：{thought}')
+            if not action_type:
+                print('错误，未能解析有效的action_type，流程中断。')
+                break
+
+            if action_type=='finish':
+                final_answer=result.final_answer
+                action_text=f"Finish[{final_answer}]"
+
+                print(f'最终答案：{final_answer}')
+                return final_answer
+
+            if not tool_name or not tool_input:
+                continue
+            action_text=f"{tool_name}[{tool_input}]"
+
+            tool_function=self.tool_executor.getTool(tool_name)
+            print(f'行动：{tool_name}[{tool_input}]')
+            if not tool_function:
+                observation=f'错误：未找到名为 {tool_name} 的工具。'
+            else:
+                observation=tool_function(tool_input)
+
+            print(f'观察：{observation}')
+            self.history.append(f'Action: {action_text}')
+            self.history.append(f'Observation: {observation}')
+
+        print('已达到最大循环步数，循环结束。')
+        return None
+
+
+
+
+
+
+
+
 
 
 
@@ -247,5 +346,5 @@ if __name__=='__main__':
 
 
 
-    ReAct=ReActAgent(agent,toolExecutor,max_iters=5)
+    ReAct=ReActAgentplus(agent,toolExecutor,max_iters=5)
     ReAct.run('今天上海的天气如何？')
