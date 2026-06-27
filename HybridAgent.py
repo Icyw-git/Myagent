@@ -68,7 +68,7 @@ REFLECTION_TEMPLATE="""
 如果答案有误或不完整，回复「需要改进：」并简要说明原因。
 """
 
-class myPlanner(Planner):
+class myPlanner(Planner): #重写planner,使得planner可以使用工具列表
     def __init__(self,llm_client:Myagent,tool_executor:ToolExecutor):
         super().__init__(llm_client)
         self.tool_executor=tool_executor
@@ -103,11 +103,11 @@ class HybridAgent:
     # 修复：构造函数里调用 _register_tools()，或用 _register_default_tools 抽成独立方法便于扩展。
     def __init__(self,llm_client:Myagent,max_depth:int=3):
         self.llm_client = llm_client
-        self.tool_executor = ToolExecutor()
+        self.tool_executor = ToolExecutor() #先初始化toolexecutor 之后再统一进行工具注册
         self._register_tools()
         self.planner = myPlanner(self.llm_client,self.tool_executor)
         self.ReActAgent = ReActAgent(self.llm_client,self.tool_executor)
-        self.max_depth = max_depth
+        self.max_depth = max_depth #最大递归深度
 
     def _register_tools(self):
         self.tool_executor.register_tool(
@@ -120,7 +120,7 @@ class HybridAgent:
     def run(self,question:str,depth:int=1,current_best:str=None):
         if depth>self.max_depth:
             print('达到递归最大深度，停止运行。')
-            return current_best if current_best else None
+            return current_best if current_best else None #若达到最大递归深度则返回当前最佳答案
         print(f'\n--- 开始处理问题 ---\n问题：{question}\n--- 第{depth}次尝试 ---\n')
         plan=self.planner.plan(question)
 
@@ -141,6 +141,8 @@ class HybridAgent:
             # history.append(None) 后下一轮循环 join 时就会报：
             # TypeError: sequence item 0: expected str instance, NoneType found
             # 修复：所有外部返回值后面加 or '' 兜底。
+
+            #None是python中的一种数据类型，None是 Python 的一个特殊常量，表示“没有值”、“空”或“缺失”。
             if 'tool' not in iteration:
                 response=self.llm_client.think(messages) or ''  # or ''：防止 None 进入 history
                 history.append(response)
@@ -171,14 +173,14 @@ class HybridAgent:
         response=self.llm_client.think(messages) or ''
         if '无需改进' in response:
             print(f'最终答案：{final_answer}')
-            return final_answer
+            return final_answer #无需改进则直接返回答案
 
         print(f'--- 结果未达到要求，需要改进，重新规划。---')
         # ==================== [错误记录 #5] 递归函数必须 return 递归调用的结果 ====================
         # 知识点：递归函数里写 self.run(...) 而不写 return，递归的返回值不会传递回最外层调用方。
         # 错误写法：self.run(question, depth+1, final_answer) → 结果被丢弃，函数默认返回 None
         # 正确写法：return self.run(question, depth+1, final_answer) → 递归结果逐层上传
-        return self.run(question,depth+1,final_answer)
+        return self.run(question,depth+1,final_answer) #递归至下一层，planner重新规划
 
 
 
