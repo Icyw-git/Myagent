@@ -1,11 +1,10 @@
 import os 
-from openai import OpenAI
 from dotenv import load_dotenv
 from typing import List ,Dict,Any,Optional,Literal
 from serpapi import SerpApiClient
-from llm_client import Myagent
+from llm_client import Myagent #使用通用的llm_client模块
 import re
-from pydantic import BaseModel,Field
+from pydantic import BaseModel #使用pydantic进行json格式的规定和检查
 
 
 
@@ -212,6 +211,9 @@ class ReActAgent:
             return None, None
 
 
+#以上是使用正则表达式和llm prompt进行约束生成的指令 对llm的指令遵循能力要求高，而且解析正则表达式的bug较多，下面使用pydantic进行约束生成和解析，pydantic是一个数据验证和设置管理的库，它使用Python的类型注解来定义数据模型，并提供了数据验证、序列化和反序列化等功能。
+
+
 
 class ReActOutput(BaseModel):
     thought: str
@@ -219,6 +221,8 @@ class ReActOutput(BaseModel):
     tool_name: Optional[str] = None
     tool_input: Optional[str] = None
     final_answer: Optional[str] = None
+
+#这样规定的json格式可以让llm在输出时遵循这个格式，方便后续的解析和处理。下面是使用pydantic进行约束生成和解析的ReActAgentplus类。
 
 REACT_PROMPT_TEMPLATE1="""
 你是一个能调用外部工具的助手。
@@ -266,10 +270,10 @@ class ReActAgentplus:
                 print('错误：LLM未能返回有效结果。')
                 break
 
-            result=ReActOutput.model_validate(response_json)
+            result=ReActOutput.model_validate(response_json) #使用pydantic进行json格式的验证和解析
 
-            thought=result.thought
-            action_type=result.action_type
+            thought=result.thought #直接使用pydantic模型的属性来获取thought,action_type,tool_name,tool_input,final_answer
+            action_type=result.action_type #注意不能使用result['action_type']，因为pydantic模型的属性是通过点操作符访问的，而不是字典的键访问。
             tool_name=result.tool_name
             tool_input=result.tool_input
 
@@ -319,11 +323,11 @@ class ReActAgentplus:
 
 if __name__=='__main__':
     agent=Myagent()
-    Messages=[
-        {"role":"system","content":"你是一个有用的助手"},
-        {"role":"user","content":"一阶线性电路的全响应怎么求？"}
-    ]
-    agent.think(messages=Messages)
+    # Messages=[
+    #     {"role":"system","content":"你是一个有用的助手"},
+    #     {"role":"user","content":"一阶线性电路的全响应怎么求？"}
+    # ]
+    # agent.think(messages=Messages)
 
     toolExecutor=ToolExecutor()
 
