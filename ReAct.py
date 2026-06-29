@@ -256,7 +256,7 @@ class ReActAgentplus:
         self.max_consecutive_errors = 3  # 最大连续工具调用失败次数
         self.last_action = None
 
-    def _handle_tool_error(self, error_type: str, tool_name: str,tool_input: Optional[str] = None) -> str:
+    def _handle_tool_error(self, error_type: str, tool_name: str,tool_input: Optional[str] = None) -> str: #用于处理tool可能的调用失败的情况
 
         self.consecutive_tool_failures += 1
         if error_type == 'not found':
@@ -292,7 +292,13 @@ class ReActAgentplus:
                 print('错误：LLM未能返回有效结果。')
                 break
 
-            result=ReActOutput.model_validate(response_json) #使用pydantic进行json格式的验证和解析
+                
+            try:
+                result=ReActOutput.model_validate(response_json) #使用pydantic进行json格式的验证和解析
+
+            except Exception as e:
+                print(f'错误：解析LLM响应时出错。错误信息：{e}')
+                break
 
             thought=result.thought #直接使用pydantic模型的属性来获取thought,action_type,tool_name,tool_input,final_answer
             action_type=result.action_type #注意不能使用result['action_type']，因为pydantic模型的属性是通过点操作符访问的，而不是字典的键访问。
@@ -314,8 +320,10 @@ class ReActAgentplus:
 
             if not tool_name or not tool_input:
                 continue
+
             action_text=f"{tool_name}[{tool_input}]"
-            if (tool_name,tool_input)==self.last_action:
+
+            if (tool_name,tool_input)==self.last_action: #出现重复调用同一个工具的情况，增加错误处理机制
                 observation=self._handle_tool_error('repeated_call',tool_name,tool_input)
                 self.last_action=(tool_name,tool_input)
             else:
@@ -339,8 +347,8 @@ class ReActAgentplus:
             print(f'观察：{observation}')
             self.history.append(f'Action: {action_text}')
             self.history.append(f'Observation: {observation}')
-
-        print('已达到最大循环步数，循环结束。')
+        if current_step>=self.max_iters:
+            print('已达到最大循环步数，循环结束。')
         return None
 
 #json格式的ReActAgentplus类相比于文本格式的ReActAgent类，具有更强的结构化和可验证性，能够更好地约束llm的输出格式，减少解析错误的可能性。
