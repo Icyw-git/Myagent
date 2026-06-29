@@ -1,8 +1,8 @@
 from ReAct import ToolExecutor,ReActAgent,search
-from PlanAndSolve import Planner
 from dotenv import load_dotenv
 import ast
 from llm_client import Myagent
+from ReAct import ReActAgentplus,ReActOutput
 
 
 
@@ -57,6 +57,26 @@ Action: 你决定采取的行动，必须是以下格式之一:
 Plan提示（如需调工具）: {tool_hint}
 """
 
+HYBRID_REACT_PROMPT_TEMPLATE = """
+你是一个能调用外部工具的助手。你已经在一个多步骤计划中被委派了具体任务。
+
+可用工具：
+{tools}
+
+你必须**只返回一个 JSON 对象**，格式如下：
+
+如果是调用工具（请优先使用下方「建议工具」）：
+{{"thought": "你的推理", "action_type": "tool_call", "tool_name": "工具名", "tool_input": "工具输入"}}
+
+如果是输出最终答案：
+{{"thought": "你的推理", "action_type": "finish", "final_answer": "最终答案"}}
+
+原始问题: {question}
+当前步骤描述: {current_step}
+历史结果: {history}
+建议工具: {tool_hint}
+"""
+
 REFLECTION_TEMPLATE="""
 你是评审专家。请判断以下答案是否满意。
 
@@ -106,7 +126,7 @@ class HybridAgent:
         self.tool_executor = ToolExecutor() #先初始化toolexecutor 之后再统一进行工具注册
         self._register_tools()
         self.planner = myPlanner(self.llm_client,self.tool_executor)
-        self.ReActAgent = ReActAgent(self.llm_client,self.tool_executor)
+        self.ReActAgentplus = ReActAgentplus(self.llm_client,self.tool_executor)
         self.max_depth = max_depth #最大递归深度
 
     def _register_tools(self):
@@ -149,13 +169,8 @@ class HybridAgent:
                 print(f'无工具调用，步骤{i+1} 已完成，结果为：{response}')
             else:
                 history_str='\n'.join(history)
-                react_question = (
-                    f"原始问题: {question}\n"
-                    f"之前步骤的结果: {history_str}\n"
-                    f"当前任务: {iteration['step']}\n"
-                    f"请使用 {iteration['tool']}[{iteration['input']}] 获取所需信息。"
-                )
-                response=self.ReActAgent.run(react_question) or ''  # or ''：防止 ReAct 跑满轮次返回 None
+                react_question = HYBRID_REACT_PROMPT_TEMPLATE.format(question=question,history=history_str,current_step=iteration.get('step',''),tools=self.tool_executor.getAvailableTools(),tool_hint=f"{iteration['tool']}[{iteration['input']}]")
+                response=self.ReActAgentplus.run(react_question) or ''  # or ''：防止 ReAct 跑满轮次返回 None
                 history.append(response)
                 print(f'有工具调用，步骤{i+1} 已完成，结果为：{response}')
 
