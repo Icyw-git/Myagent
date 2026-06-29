@@ -84,7 +84,7 @@ class ToolExecutor:
 
         return '\n'.join([f"{name}:{info['description']}" for name,info in self.tools.items()])
     
-    
+
 
 
 
@@ -118,6 +118,8 @@ class ReActAgent:
         self.tool_executor=tool_executor #工具管理器
         self.max_iters=max_iters #最大循环轮数
         self.history=[] #对话历史
+
+
 
     def run (self,question:str):
         self.history=[]
@@ -250,8 +252,28 @@ class ReActAgentplus:
         self.max_iters=max_iters #最大循环轮数
         self.history=[] #对话历史
 
+        self.consecutive_tool_failures = 0  # 连续工具调用失败计数器
+        self.max_consecutive_errors = 3  # 最大连续工具调用失败次数
+        self.last_action = None
+
+    def _handle_tool_error(self, error_type: str, tool_name: str,tool_input: Optional[str] = None) -> str:
+
+        self.consecutive_tool_failures += 1
+        if error_type == 'not found':
+            return f'{tool_name} 工具错误[{self.consecutive_tool_failures}/{self.max_consecutive_errors}]:未找到名为 {tool_name} 的工具。'
+
+        elif error_type == 'execution_error':
+            return f'{tool_name} 工具执行异常[{self.consecutive_tool_failures}/{self.max_consecutive_errors}]:请检查输入参数「{tool_input}」是否合理，或尝试换一个参数。'
+        elif error_type == 'repeated_call':
+            return f'{tool_name} 重复调用[{self.consecutive_tool_failures}/{self.max_consecutive_errors}]:你刚才已用「{tool_name}[{tool_input}]」调过该工具，请换一个搜索词或换一种思路。'
+
+        return '未知错误'
+
     def run(self,question:str):
         self.history=[]
+        self.consecutive_tool_failures=0
+        self.max_consecutive_errors=3
+        self.last_action=None
         current_step=0
         while current_step<self.max_iters:
             current_step+=1
@@ -293,13 +315,26 @@ class ReActAgentplus:
             if not tool_name or not tool_input:
                 continue
             action_text=f"{tool_name}[{tool_input}]"
-
-            tool_function=self.tool_executor.getTool(tool_name)
-            print(f'行动：{tool_name}[{tool_input}]')
-            if not tool_function:
-                observation=f'错误：未找到名为 {tool_name} 的工具。'
+            if (tool_name,tool_input)==self.last_action:
+                observation=self._handle_tool_error('repeated_call',tool_name,tool_input)
+                self.last_action=(tool_name,tool_input)
             else:
-                observation=tool_function(tool_input)
+
+                tool_function=self.tool_executor.getTool(tool_name)
+                print(f'行动：{tool_name}[{tool_input}]')
+                if not tool_function:
+                    observation=self._handle_tool_error('not found',tool_name,tool_input)
+                else:
+                    try:
+                        observation=tool_function(tool_input)
+                        self.consecutive_tool_failures=0
+                    except Exception as e:
+                        observation=self._handle_tool_error('execution_error',tool_name,tool_input)
+                self.last_action=(tool_name,tool_input)
+
+            if self.consecutive_tool_failures>=self.max_consecutive_errors:
+                print(f'连续{self.max_consecutive_errors}次调用工具失败，已强制退出。')
+                break
 
             print(f'观察：{observation}')
             self.history.append(f'Action: {action_text}')
@@ -308,12 +343,14 @@ class ReActAgentplus:
         print('已达到最大循环步数，循环结束。')
         return None
 
+#json格式的ReActAgentplus类相比于文本格式的ReActAgent类，具有更强的结构化和可验证性，能够更好地约束llm的输出格式，减少解析错误的可能性。
+#缺点是需要llm能够严格遵守json格式输出，否则会导致解析失败.
 
 
 
 
-
-
+#TODO:在工具调用失败时，应该有一个机制让llm能够重新选择工具或者修改输入，而不是直接中断整个流程。可以考虑在工具调用失败时，将错误信息作为Observation的一部分返回给llm，让llm根据新的信息进行下一步的思考和行动.
+#TODO:多工具的时候，搜索工具的结果可能不够准确，应该更新搜索方式
 
 
 
