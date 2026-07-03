@@ -1,7 +1,7 @@
 import os 
 from dotenv import load_dotenv
 from typing import List ,Dict,Any,Optional,Literal
-from serpapi import SerpApiClient
+from serpapi import GoogleSearch
 from llm_client import Myagent #使用通用的llm_client模块
 import re
 from pydantic import BaseModel #使用pydantic进行json格式的规定和检查
@@ -37,7 +37,7 @@ def search(query:str)->str:
         
         }
 
-        client=SerpApiClient(params)
+        client=GoogleSearch(params)
         results=client.get_dict()
 
 
