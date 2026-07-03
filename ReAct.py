@@ -21,7 +21,7 @@ def search(query:str)->str:
 
     print(f'正在执行{query}的搜索...')
     try:
-        api_key=os.getenv('SERPAPI-API-KEY')
+        api_key=os.getenv('SERPAPI_API_KEY')
         if not api_key:
             raise ValueError("SERPAPI-API-KEY未设置，请在.env文件中设置该环境变量。")
         

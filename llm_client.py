@@ -15,10 +15,10 @@ class Myagent:
     '''
 
     def __init__(self, api_key: str = None, base_url: str = None, model_id: str = None, timeout: int = 60):
-        self.api_key = api_key if api_key else os.getenv('LLM-API-KEY')
-        self.base_url = base_url if base_url else os.getenv('LLM-BASE-URL')
-        self.model_id = model_id if model_id else os.getenv('LLM-MODEL-ID')
-        self.timeout = timeout if timeout else int(os.getenv('LLM-TIMEOUT'))
+        self.api_key = api_key if api_key else os.getenv('LLM_API_KEY')
+        self.base_url = base_url if base_url else os.getenv('LLM_BASE_URL')
+        self.model_id = model_id if model_id else os.getenv('LLM_MODEL_ID')
+        self.timeout = timeout if timeout else int(os.getenv('TIMEOUT'))
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)  # 初始化llm客户端
 
     def think(self, messages: List[Dict[str, str]], temperature: float = 0):
