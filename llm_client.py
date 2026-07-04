@@ -14,11 +14,12 @@ class Myagent:
     这是自定义的一个类，主要用于封装与openai的api交互的逻辑，方便在其他地方调用。
     '''
 
-    def __init__(self, api_key: str = None, base_url: str = None, model_id: str = None, timeout: int = 60):
+    def __init__(self, api_key: str = None, base_url: str = None, model_id: str = None, timeout: int = 60,max_tokens: int =4096):
         self.api_key = api_key if api_key else os.getenv('LLM_API_KEY')
         self.base_url = base_url if base_url else os.getenv('LLM_BASE_URL')
         self.model_id = model_id if model_id else os.getenv('LLM_MODEL_ID')
         self.timeout = timeout if timeout else int(os.getenv('TIMEOUT'))
+        self.max_tokens = max_tokens if max_tokens else int(os.getenv('LLM_MAX_TOKENS'))
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)  # 初始化llm客户端
 
     def think(self, messages: List[Dict[str, str]], temperature: float = 0):
@@ -28,6 +29,7 @@ class Myagent:
                 model=self.model_id,  # 使用的模型名称
                 messages=messages,
                 temperature=temperature,
+                max_tokens=self.max_tokens,
                 stream=True,
 
             )  # 使用流式输出，模型会返回内容块，而不是一次性返回完整的响应，这样可以更快地获取到模型的响应内容，并且在控制台上实时显示出来。
@@ -55,6 +57,7 @@ class Myagent:
                 model=self.model_id,
                 messages=messages,
                 temperature=temperature,
+                max_tokens=self.max_tokens,
                 stream=True,
             ) #使用流式输出，之后尝试解析json格式
 

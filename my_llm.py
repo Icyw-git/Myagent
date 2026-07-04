@@ -5,38 +5,47 @@ from typing import Optional
 
 from openai import OpenAI
 
-from llm_client import Myagent
+from hello_agents import HelloAgentsLLM
 import os
 
 
-class My_llm(Myagent):
-    def __init__(self,
-                 model:Optional[str] = None,
-                 api_key:Optional[str] = None,
-                 base_url:Optional[str] = None,
-                 provider:Optional[str] = 'auto',
-                 **kwargs
+class MyLLM(HelloAgentsLLM):
+    def __init__(
+            self,
+            model: Optional[str] = None,
+            api_key: Optional[str] = None,
+            base_url: Optional[str] = None,
+            provider: Optional[str] = "auto",
+            **kwargs
+    ):
+        # 检查provider是否为我们想处理的'modelscope'
+        if provider == "modelscope":
+            print("正在使用自定义的 ModelScope Provider")
+            self.provider = "modelscope"
 
+            # 解析 ModelScope 的凭证
+            self.api_key = api_key or os.getenv("MODELSCOPE_API_KEY")
+            self.base_url = base_url or "https://api-inference.modelscope.cn/v1/"
 
-                 ):
-        if provider =='modelscope':
-            print('正在使用自定义的modelscope平台')
+            # 验证凭证是否存在
+            if not self.api_key:
+                raise ValueError("ModelScope API key not found. Please set MODELSCOPE_API_KEY environment variable.")
 
-            self.provider='modelscope'
+            # 设置默认模型和其他参数
+            self.model = model or os.getenv("LLM_MODEL_ID") or "Qwen/Qwen2.5-VL-72B-Instruct"
+            self.temperature = kwargs.get('temperature', 0.7)
+            self.max_tokens = kwargs.get('max_tokens')
+            self.timeout = kwargs.get('timeout', 60)
 
-            self.base_url=base_url or os.getenv('MODELSCOPE_BASE_URL')
-            self.api_key=api_key or os.getenv('MODELSCOPE_API_KEY')
-
-            if not api_key:
-                raise ValueError('没有找到modelscope的api_key')
-
-            self.model_id=model or os.getenv('MODELSCOPE_MODEL_ID')
-            self.temperature=kwargs.get('temperature',0.7)
-            self.max_tokens=kwargs.get('max_tokens',100)
-            self.timeout=kwargs.get('timeout',10)
-
-            self._client=OpenAI(api_key=self.api_key,base_url=self.base_url,timeout=self.timeout)
+            # 使用获取的参数创建OpenAI客户端实例
+            self._client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=self.timeout)
 
         else:
-            super().__init__(model_id=model,api_key=api_key,base_url=base_url,**kwargs)
+            # 如果不是 modelscope, 则完全使用父类的原始逻辑来处理
+            super().__init__(model=model, api_key=api_key, base_url=base_url, provider=provider, **kwargs)
 
+
+if __name__ == '__main__':
+    agent = MyLLM(model='qwen2.5-coder:0.5b',api_key='ollama',provider='ollama',base_url="http://localhost:11434/v1")
+    response=agent.think(messages=[{'role':'user','content':'请用python写一个冒泡排序算法'}])
+    print(response)
