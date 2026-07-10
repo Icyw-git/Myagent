@@ -31,6 +31,10 @@ class Config(BaseModel):
     def to_dict(self):
         return self.model_dump() #这是pydantic v2的用法，返回字典形式的配置
 
+# 小提示：如果你想让某个 Config 全局只有一份、到处 import 都拿到同一个实例（而不是每次 Config() 都新建一份默认值），可以在 config.py 里额外写一行：
+# global_config = Config.from_env()
+
+
 if __name__ =='__main__':
     cfg=Config.from_env() #类方法作用是从环境变量中读取配置并创建Config实例，不需要创建对象再调用实例方法
     print(cfg.to_dict())
