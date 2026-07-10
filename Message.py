@@ -28,7 +28,7 @@ class Message(BaseModel):
             'role':self.role,
             'content':self.content,
         }
-    #只包含角色和消息内容
+    #只包含角色和消息内容，这是openai api格式
 
     def __str__(self):
         return f"[{self.role}] {self.content}" #转换为人类可读的格式
