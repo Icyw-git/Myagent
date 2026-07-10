@@ -14,11 +14,11 @@ class Agent(ABC):
         self.name=name
         self.llm=llm
         self.system_prompt=system_prompt
-        self.config=config or Config()
-        self._history:List[Message]=[]
+        self.config=config or Config() #没传入config就使用默认配置
+        self._history:List[Message]=[] #_表示私有属性，存储历史消息记录
 
     @abstractmethod
-    def run(self,input_text:str,**kwargs): #agent的核心方法，接收用户输入并返回响应
+    def run(self,input_text:str,**kwargs): #agent的核心方法，接收用户输入并返回响应，kwargs可以传入额外参数，比如工具调用的参数
         pass
 
     def add_history(self,history:Message): #添加历史记录，history是Message对象
