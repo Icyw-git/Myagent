@@ -3,7 +3,7 @@ import  re
 from hello_agents import SimpleAgent,HelloAgentsLLM,ToolRegistry
 import inspect
 from dotenv import load_dotenv
-
+from pyexpat.errors import messages
 
 from Message import Message
 from Config import Config
@@ -136,6 +136,83 @@ class MySimpleAgent(SimpleAgent):
             )
 
         return tool_calls
+
+    def _execute_tool_call(self, tool_name: str, parameters:str) -> str:
+        if not self.tool_registry:
+            return f"工具调用失败：未提供工具注册表。"
+
+        try:
+            param_dict=self._parse_tool_parameters(tool_name,parameters)
+            tool =self.tool_registry.get_tool(tool_name)
+            if not tool:
+                return f'错误：未找到工具{tool_name}'
+
+            result=tool.run(param_dict)
+
+            return f'工具{tool_name}使用结果：{result}'
+
+        except Exception as e:
+            return f'工具调用失败：{str(e)}'
+
+    def _parse_tool_parameters(self, tool_name: str, parameters: str) -> dict:
+        """智能解析工具参数"""
+        param_dict = {}
+
+        if '=' in parameters:
+            # 格式: key=value 或 action=search,query=Python
+            if ',' in parameters:
+                # 多个参数:action=search,query=Python,limit=3
+                pairs = parameters.split(',')
+                for pair in pairs:
+                    if '=' in pair:
+                        key, value = pair.split('=', 1)
+                        param_dict[key.strip()] = value.strip()
+            else:
+                # 单个参数:key=value
+                key, value = parameters.split('=', 1)
+                param_dict[key.strip()] = value.strip()
+        else:
+            # 直接传入参数，根据工具类型智能推断
+            if tool_name == 'search':
+                param_dict = {'query': parameters}
+            elif tool_name == 'memory':
+                param_dict = {'action': 'search', 'query': parameters}
+            else:
+                param_dict = {'input': parameters}
+
+        return param_dict
+
+
+    def stream_run(self,input_text:str,**kwargs):
+        print(f'{self.name}正在处理{input_text}')
+
+        messages=[]
+        enhanced_system_prompt=self._enhance_system_prompt()
+        messages.append({'role':'system','content':enhanced_system_prompt})
+
+        for msg in self._history:
+            messages.append({
+                'role':msg.role,
+
+                'content':msg.content
+            })
+
+        messages.append({'role':'user','content':input_text})
+
+        full_response=""
+        print('流式生成：',end='')
+        for chunk in self.llm.stream_invoke(messages,**kwargs): #self.llm.stream_invoke返回一个生成器，每次迭代返回一段响应内容
+            full_response+=chunk
+            print(chunk,end='',flush=True)
+            yield chunk #yield关键字用于生成器函数，允许函数在每次迭代时返回一个值，并在下一次迭代时从上次返回的位置继续执行,这里用于流式输出响应内容
+
+        print()
+
+        self.add_message(Message(input_text,'user'))
+        self.add_message(Message(full_response,'assistant'))
+        print(f'{self.name}流式生成完成')
+
+
 
 
 
