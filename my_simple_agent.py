@@ -186,18 +186,18 @@ class MySimpleAgent(SimpleAgent):
     def stream_run(self,input_text:str,**kwargs):
         print(f'{self.name}正在处理{input_text}')
 
-        messages=[]
+        messages=[] #这是一个消息列表，用于存储系统提示、历史消息和用户输入
         enhanced_system_prompt=self._enhance_system_prompt()
-        messages.append({'role':'system','content':enhanced_system_prompt})
+        messages.append({'role':'system','content':enhanced_system_prompt}) #加入系统提示到消息列表中
 
         for msg in self._history:
             messages.append({
                 'role':msg.role,
 
                 'content':msg.content
-            })
+            }) #加入历史消息到消息列表中
 
-        messages.append({'role':'user','content':input_text})
+        messages.append({'role':'user','content':input_text}) #加入用户输入到消息列表中
 
         full_response=""
         print('流式生成：',end='')
