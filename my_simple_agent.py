@@ -3,7 +3,6 @@ import  re
 from hello_agents import SimpleAgent,HelloAgentsLLM,ToolRegistry
 import inspect
 from dotenv import load_dotenv
-from pyexpat.errors import messages
 
 from Message import Message
 from Config import Config
