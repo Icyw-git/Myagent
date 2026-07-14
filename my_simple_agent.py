@@ -26,7 +26,7 @@ class MySimpleAgent(SimpleAgent):
         self.tool_registry=tool_registry
 
 
-    def run(self,input_text:str,max_tool_iteration:int,**kwargs) ->str:
+    def run(self,input_text:str,max_tool_iteration:int=3,**kwargs) ->str:
         print(f'{self.name}正在处理：{input_text}')
 
         messages=[]
@@ -39,7 +39,14 @@ class MySimpleAgent(SimpleAgent):
         messages.append({'role':'user','content':input_text}) #添加用户输入到消息列表中
 
         if not self.enable_tool_calling: #如无启用工具调用，则直接调用llm生成响应
-            response=self.llm.invoke(messages,**kwargs)
+            # ==================== [错误记录 #6] LLM 返回值可能为 None ====================
+            # 知识点：LLM 调用失败、超时或接口异常时，invoke() 可能返回 None。
+            # 如果后续代码直接对 None 做字符串操作（如 .startswith、.split），
+            # 会抛出 AttributeError。
+            # 错误写法：response = self.llm.invoke(messages, **kwargs)  ← 无兜底
+            # 正确写法：response = self.llm.invoke(messages, **kwargs) or ''
+            #          ← 用 or '' 确保返回值至少是空字符串，避免 None 进入 history。
+            response:str=self.llm.invoke(messages,**kwargs)
             self.add_message(Message(input_text,'user'))
             self.add_message(Message(response,'assistant')) #添加用户输入和助手响应到历史记录中
             print(f'{self.name}响应成功')
@@ -50,7 +57,7 @@ class MySimpleAgent(SimpleAgent):
     def _enhance_system_prompt(self) ->str:
 
         base_prompt=self.system_prompt or '你是一个有用的AI助手。'
-        if not self.enable_tool_calling or self.tool_registry: #如果没有启用工具调用或没有提供工具注册表，则返回基础系统提示
+        if not self.enable_tool_calling or not self.tool_registry: #如果没有启用工具调用或没有提供工具注册表，则返回基础系统提示
             return base_prompt
 
         tool_desc=self.tool_registry.get_tools_description()
@@ -59,14 +66,25 @@ class MySimpleAgent(SimpleAgent):
 
 
         #这是一个多行字符串模板，用于生成工具调用的提示信息，包含可用工具列表和工具使用方法
-        tool_prompt_template=""" 
+        # ==================== [错误记录 #7] f-string 与 .format() 混用导致花括号冲突 ====================
+        # 知识点：f-string 和 str.format() 混用时，花括号的转义规则会互相干扰。
+        # f-string 中 {{ 和 }} 输出字面量花括号 { }，但前提是不会再有后续的 .format() 调用。
+        # 如果 f-string 展开后仍包含 {tool_name}、{parameters} 这样的单花括号，
+        # 后续的 .format(tool_desc=tool_desc) 会把它们当作占位符去解析，
+        # 而调用方没有传 tool_name=xxx → 抛出 KeyError: 'tool_name'
+        # 错误写法（当前）：f-string 先展开 {tool_desc}，但 {{tool_name}}/{{parameters}}
+        #          变成字面量 {tool_name}/{parameters}，再被 .format() 解析为占位符 → KeyError
+        # 正确写法1：去掉 f-string 前缀，全部用 .format(tool_desc=tool_desc) 一次性传参，
+        #          然后把模板中的 {tool_name} 写作 {{tool_name}} 来转义。
+        # 正确写法2：去掉末尾的 .format() 调用，直接用 f-string 完成所有变量替换。
+        tool_prompt_template=f""" 
         --- 可用工具 ---
         你可以使用以下工具来回答问题：
         {tool_desc}
         
         --- 工具使用方法 ---
         当需要调用工具是，请使用以下格式：
-        '[TOOL_CALL:{tool_name}:{parameters}]'
+        '[TOOL_CALL:{{tool_name}}:{{parameters}}]'
         
         例如:'[TOOL_CALL:search:Python编程]' 或 '[TOOL_CALL:memory:recall=用户信息]'
         
@@ -111,9 +129,9 @@ class MySimpleAgent(SimpleAgent):
             final_answer=response
 
         self.add_message(Message(input_text,'user'))
-        self.add_message(Message(response,'assistant'))
+        self.add_message(Message(final_answer,'assistant'))
 
-        return response
+        return final_answer
 
     def _parse_tool_calls(self,texts:str):
         pattern = r'\[TOOL_CALL:([^:]+):([^\]]+)\]' #正则表达式模式，用于匹配工具调用的格式
@@ -210,6 +228,31 @@ class MySimpleAgent(SimpleAgent):
         self.add_message(Message(input_text,'user'))
         self.add_message(Message(full_response,'assistant'))
         print(f'{self.name}流式生成完成')
+
+    def add_tool(self,tool) ->None:
+        if not self.tool_registry:
+            from hello_agents import ToolRegistry
+            self.tool_registry=ToolRegistry()
+            self.enable_tool_calling=True
+
+        self.tool_registry.register_tool(tool)
+        print(f'工具{tool.name}已添加')
+
+    def has_tools(self) -> bool:
+        return self.enable_tool_calling and self.tool_registry is not None
+
+    def remove_tool(self, tool_name: str) -> bool:
+        if self.tool_registry:
+            self.tool_registry.unregister(tool_name)
+            return True
+
+
+        return False
+
+    def list_tools(self) -> list:
+        if self.tool_registry:
+            return self.tool_registry.list_tools()
+        return []
 
 
 
