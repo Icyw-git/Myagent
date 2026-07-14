@@ -77,7 +77,7 @@ class MySimpleAgent(SimpleAgent):
         # 正确写法1：去掉 f-string 前缀，全部用 .format(tool_desc=tool_desc) 一次性传参，
         #          然后把模板中的 {tool_name} 写作 {{tool_name}} 来转义。
         # 正确写法2：去掉末尾的 .format() 调用，直接用 f-string 完成所有变量替换。
-        tool_prompt_template=f""" 
+        tool_prompt_template=""" 
         --- 可用工具 ---
         你可以使用以下工具来回答问题：
         {tool_desc}

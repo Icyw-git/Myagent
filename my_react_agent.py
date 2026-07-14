@@ -1,4 +1,5 @@
 from typing import Optional,List
+import re
 
 from hello_agents import ReActAgent,ToolRegistry,HelloAgentsLLM
 from Message import Message
@@ -10,8 +11,32 @@ from Config import Config
 # 错误写法：模板为空字符串 → LLM 收到空指令，自由发挥 → 正则匹配不到 Thought/Action
 # 正确写法：填入类似 HybridAgent 中 EXECUTOR_PROMPT_TEMPLATE 的格式规约，
 #          明确要求 LLM 输出 Thought / Action / Finish 三段格式。
-REACTAGENT_PROMPT_TEMPLATE="""
+MY_REACT_PROMPT = """你是一个具备推理和行动能力的AI助手。你可以通过思考分析问题，然后调用合适的工具来获取信息，最终给出准确的答案。
 
+## 可用工具
+{tools}
+
+## 工作流程
+请严格按照以下格式进行回应，每次只能执行一个步骤:
+
+Thought: 分析当前问题，思考需要什么信息或采取什么行动。
+Action: 选择一个行动，格式必须是以下之一:
+- `{{tool_name}}[{{tool_input}}]` - 调用指定工具
+- `Finish[最终答案]` - 当你有足够信息给出最终答案时
+
+## 重要提醒
+1. 每次回应必须包含Thought和Action两部分
+2. 工具调用的格式必须严格遵循:工具名[参数]
+3. 只有当你确信有足够信息回答问题时，才使用Finish
+4. 如果工具返回的信息不够，继续使用其他工具或相同工具的不同参数
+
+## 当前任务
+**Question:** {question}
+
+## 执行历史
+{history}
+
+现在开始你的推理和行动:
 """
 
 
@@ -29,7 +54,7 @@ class MyReActAgent(ReActAgent):
         self.tool_registry=tool_registry
         self.max_steps=max_steps
         self.current_history:List[str]=[]
-        self.prompt_template=custom_prompt if custom_prompt else REACTAGENT_PROMPT_TEMPLATE
+        self.prompt_template=custom_prompt if custom_prompt else MY_REACT_PROMPT
         print(f'{name}初始化完成')
 
     def run(self,input_text:str,**kwargs)->str: #agent循环类似，每一步都调用llm生成响应，解析响应中的动作，执行工具调用，并将结果添加到历史记录中，直到达到最大步数或完成任务
@@ -92,3 +117,34 @@ class MyReActAgent(ReActAgent):
         self.add_message(Message(input_text,'user'))
         self.add_message(Message(final_answer,'assistant'))
         return final_answer
+
+    def _parse_output(self,text:str):
+        # 使用正则表达式解析 LLM 输出，提取 Thought 和 Action
+        thought_match=re.search(r'Thought:(.*)',text,re.DOTALL)
+        action_match=re.search(r'Action:(.*)',text,re.DOTALL)
+
+        thought=thought_match.group(1).strip() if thought_match else ''
+        action=action_match.group(1).strip() if action_match else ''
+
+        return thought,action
+
+    def _parse_action(self,action:str):
+        # 使用正则表达式解析 Action，提取工具名和输入参数
+        match=re.match(r'(\w+)\[(.*)\]',action)
+        if match:
+            tool_name=match.group(1).strip()
+            tool_input=match.group(2).strip()
+            return tool_name,tool_input
+        else:
+            return None,None
+
+    def _parse_action_input(self,action:str):
+        # 使用正则表达式解析 Finish，提取最终答案
+        match=re.match(r'Finish\[(.*)\]',action,re.DOTALL)
+        if match:
+            final_answer=match.group(1).strip()
+            return final_answer
+        else:
+            return '抱歉，我未能理解最终答案。'
+
+
