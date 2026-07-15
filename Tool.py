@@ -20,7 +20,7 @@ class Tool(ABC):
         self.description=description
 
     @abstractmethod
-    def run(self,parameters:Dict[List,Any])->str:
+    def run(self,parameters:Dict[str,Any])->str:
         pass
 
     @abstractmethod
@@ -62,3 +62,13 @@ class ToolRegistry:
             description.append(f"- {name}:{info['description']}")
 
         return '\n'.join(description) if description else '暂无可用工具'
+
+    def execute_tool(self,tool_name:str,parameters:Dict[str,Any])->str: #执行工具调用，返回工具的输出结果
+        if tool_name in self._tools:
+            tool=self._tools[tool_name]
+            return tool.run(parameters)
+        elif tool_name in self._functions:
+            func=self._functions[tool_name]['func']
+            return func(**parameters)
+        else:
+            return f'错误：工具{tool_name}不存在'
