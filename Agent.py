@@ -3,12 +3,12 @@ from typing import Optional,List
 from Message import Message
 from Config import Config
 from abc import ABC, abstractmethod #使用abc模块来定义抽象基类和抽象方法
-from my_llm import MyLLM
+from hello_agents import HelloAgentsLLM
 
 class Agent(ABC):
     def __init__(self,
                  name:str,
-                 llm:MyLLM,
+                 llm:HelloAgentsLLM,
                  system_prompt:Optional[str]=None,
                  config:Optional[Config]=None):
         self.name=name
