@@ -121,13 +121,18 @@ class HybridAgent:
     # 如果 Planner/Executor 依赖工具列表，构造函数里就必须注册工具。
     # 错误：先 new ToolExecutor() 传给 Planner，但从未 register_tool() → 工具列表为空，LLM 编造不存在的工具名。
     # 修复：构造函数里调用 _register_tools()，或用 _register_default_tools 抽成独立方法便于扩展。
-    def __init__(self,llm_client:Myagent,max_depth:int=3):
+    def __init__(self,llm_client:Myagent,max_depth:int=3,tool_executor:ToolExecutor=None):
+        # tool_executor 可由外部注入（pipeline 工厂按工具轴装配）；
+        # 不传时保持原行为：内部新建并 register search。
         self.llm_client = llm_client
-        self.tool_executor = ToolExecutor() #先初始化toolexecutor 之后再统一进行工具注册
-        self._register_tools()
+        self.max_depth = max_depth #最大递归深度
+        if tool_executor is None:
+            self.tool_executor = ToolExecutor() #先初始化toolexecutor 之后再统一进行工具注册
+            self._register_tools()
+        else:
+            self.tool_executor = tool_executor
         self.planner = myPlanner(self.llm_client,self.tool_executor)
         self.ReActAgentplus = ReActAgentplus(self.llm_client,self.tool_executor)
-        self.max_depth = max_depth #最大递归深度
 
     def _register_tools(self):
         self.tool_executor.register_tool(

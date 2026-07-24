@@ -89,7 +89,7 @@ class MyReActAgent(ReActAgent):
             # 知识点：Python 字符串方法名正确拼写为 startswith（含 s），而非 startwith。
             # 错误写法：action.startwith('Finish') → AttributeError
             # 正确写法：action.startswith('Finish')
-            if action and action.startwith('Finish'):
+            if action and action.startswith('Finish'):
                 # ==================== [错误记录 #4] 调用了不存在的方法 ====================
                 # 知识点：调用方法前必须确认该方法已在类中定义。
                 # 错误写法：_parse_action_input 方法未定义 → AttributeError
