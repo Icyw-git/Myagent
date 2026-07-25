@@ -49,6 +49,20 @@ def list_tool_fns(kind: str) -> List[ToolFn]:
         return [_CATALOG["calc"]]
     if kind == "search+calc":
         return [_CATALOG["search"], _CATALOG["calc"]]
+    if kind == "bench":
+        # 能力评测：TicketDesk + calculator（不挂联网 search，结果可复现）
+        from eval.bench.env_ticket import get_active_desk, list_ticket_tool_fns
+
+        def _bench_calculate(expression: str) -> str:
+            get_active_desk().note_tool_call()
+            return _calculate(expression)
+
+        calc_fn: ToolFn = (
+            "calculator",
+            "一个计算器工具，输入数学表达式（如 15*8+32），返回计算结果。",
+            _bench_calculate,
+        )
+        return list(list_ticket_tool_fns()) + [calc_fn]
     raise ValueError(f"未知 tools={kind}")
 
 

@@ -13,6 +13,7 @@ Pipeline 对比入口（三维工厂）
 - 六种范式均已接通；plan/tot/reflection 暂不用工具轴
 - 记忆轴目前仅 off
 - 评测结果默认写到 eval_results/（与 memory_data 分离），UTF-8 BOM
+- 幻觉 Phase1 case：`--cases-file eval/cases_realtime_v1.jsonl --tools none`
 """
 
 from __future__ import annotations
@@ -94,7 +95,12 @@ def main() -> None:
     parser.add_argument("--tools", default="search", choices=list(TOOL_KINDS))
     parser.add_argument("--memory", default="off")
     parser.add_argument("--grid", choices=["paradigm"], default=None)
-    parser.add_argument("--case", default=None, help="case id，如 qa / search")
+    parser.add_argument("--case", default=None, help="case id，如 qa / search / rt_weather_wuhan")
+    parser.add_argument(
+        "--cases-file",
+        default=None,
+        help="可选 jsonl case 文件（默认用 pipelines 内置 CASES）；见 eval/cases_realtime_v1.jsonl",
+    )
     parser.add_argument(
         "--no-detail",
         action="store_true",
@@ -150,12 +156,23 @@ def main() -> None:
 
 
 def _run_compare(args) -> None:
-    cases = CASES
-    if args.case:
-        cases = [c for c in CASES if c["id"] == args.case]
+    if args.cases_file:
+        from eval.load_cases import load_cases_jsonl
+
+        cases_path = Path(args.cases_file)
+        if not cases_path.is_absolute():
+            cases_path = _ROOT / cases_path
+        cases = load_cases_jsonl(cases_path, case_id=args.case)
         if not cases:
-            print(f"[error] 找不到 case id={args.case}，可选: {[c['id'] for c in CASES]}")
+            print(f"[error] cases-file 无可用题目: {cases_path}")
             return
+    else:
+        cases = CASES
+        if args.case:
+            cases = [c for c in CASES if c["id"] == args.case]
+            if not cases:
+                print(f"[error] 找不到 case id={args.case}，可选: {[c['id'] for c in CASES]}")
+                return
 
     try:
         specs = _specs_from_args(args)
@@ -167,6 +184,8 @@ def _run_compare(args) -> None:
     print("*" * 72)
     print(" PIPELINE COMPARE")
     print("*" * 72)
+    if args.cases_file:
+        print(f" cases-file: {args.cases_file}")
 
     handles = []
     for spec in specs:

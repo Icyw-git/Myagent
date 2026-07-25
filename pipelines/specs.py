@@ -2,8 +2,10 @@
 Pipeline 三维规格
 
 范式轴 paradigm: simple | react | hybrid | plan | tot | reflection
-工具轴 tools:     none | search | calc | search+calc
+工具轴 tools:     none | search | calc | search+calc | bench
 记忆轴 memory:    off | working | episodic | rag（目前只实现 off）
+
+bench：能力评测用（TicketDesk + calculator），见 eval/bench/
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ from typing import Dict
 
 
 PARADIGMS = ("simple", "react", "hybrid", "plan", "tot", "reflection")
-TOOL_KINDS = ("none", "search", "calc", "search+calc")
+TOOL_KINDS = ("none", "search", "calc", "search+calc", "bench")
 MEMORY_KINDS = ("off", "working", "episodic", "rag")
 
 
