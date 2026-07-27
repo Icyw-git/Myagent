@@ -186,6 +186,7 @@ class MemoryTool(Tool):
         self, strategy: str = "importance_based", threshold: float = 0.1, max_age_days: int = 30
     ) -> str:
         # 原骨架方法名 _forget / forget_memomries 有笔误，这里接到 Manager.forget_memories
+        # strategy 还可传 smart / capacity_based（见 MemoryManager.forget_memories 注释）
         try:
             count = self.memory_manager.forget_memories(
                 strategy=strategy,

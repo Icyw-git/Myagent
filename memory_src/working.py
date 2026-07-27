@@ -45,6 +45,12 @@ class WorkingMemory(BaseMemory):
         if len(self.memories) >= self.max_capacity:
             self._remove_lowest_priority_memory()
 
+        # 智能遗忘用：初始化访问统计（写在 metadata，不改 MemoryItem 数据结构）
+        if memory_item.metadata is None:
+            memory_item.metadata = {}
+        memory_item.metadata.setdefault("access_count", 0)
+        memory_item.metadata.setdefault("last_accessed_at", memory_item.timestamp)
+
         self.memories.append(memory_item)
         return memory_item.id
 
@@ -75,7 +81,11 @@ class WorkingMemory(BaseMemory):
             final_scores.append((memory, final_score))
 
         final_scores.sort(key=lambda x: x[1], reverse=True)
-        return [memory for memory, _ in final_scores[:limit]]
+        results = [memory for memory, _ in final_scores[:limit]]
+        # 命中即记一次访问，供 Manager 的 smart 遗忘算「访问频率」
+        for memory in results:
+            self._touch_access(memory)
+        return results
 
     # ---- 以下是 retrieve/add 依赖的私有辅助方法，md 正文没有展开实现，
     #      需要你自己设计。给你留了函数签名和职责说明。 ----
@@ -96,6 +106,13 @@ class WorkingMemory(BaseMemory):
         """删除 importance 最低（或综合优先级最低）的一条"""
         self.memories.sort(key=lambda x: x.importance)
         self.memories = self.memories[1:]
+
+    def _touch_access(self, memory: MemoryItem) -> None:
+        """更新访问次数 / 最近访问时间（智能遗忘的频率因子依赖这里）"""
+        if memory.metadata is None:
+            memory.metadata = {}
+        memory.metadata["access_count"] = int(memory.metadata.get("access_count", 0)) + 1
+        memory.metadata["last_accessed_at"] = datetime.now().isoformat()
 
     def _try_tfidf_search(self, query: str) -> dict:
         """用 sklearn 的 TfidfVectorizer 对 self.memories 的 content 建索引，
