@@ -59,7 +59,7 @@ class QdrantVectorStore:
                 ),
             )
         # 情景检索常用过滤字段（keyword）
-        for field_name in ("memory_type", "user_id", "session_id", "memory_id"):
+        for field_name in ("memory_type", "user_id", "session_id", "memory_id", "modality"):
             try:
                 self.client.create_payload_index(
                     collection_name=self.collection_name,

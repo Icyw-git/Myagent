@@ -21,6 +21,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 def _new_memory_id() -> str:
@@ -72,16 +76,17 @@ class MemoryConfig:
     database_path: str = "./memory_data/memory.db"
 
     # ---- Qdrant 向量库 ----
-    qdrant_url: Optional[str] = None
-    qdrant_api_key: Optional[str] = None
+    qdrant_url: Optional[str] = os.getenv("QDRANT_URL")
+    qdrant_api_key: Optional[str] = os.getenv("QDRANT_API_KEY")
     qdrant_collection: str = "hello_agents_vectors"
     qdrant_vector_size: int = 384
 
     # ---- Neo4j 图库（Semantic）----
-    neo4j_uri: Optional[str] = None
-    neo4j_username: Optional[str] = None
-    neo4j_password: Optional[str] = None
-    neo4j_database: str = "neo4j"
+    neo4j_uri: Optional[str] = os.getenv("NEO4J_URI")
+
+    neo4j_username: Optional[str] = os.getenv("NEO4J_USERNAME")
+    neo4j_password: Optional[str] = os.getenv("NEO4J_PASSWORD")
+    neo4j_database: str = os.getenv("NEO4J_DATABASE")
 
 
 class BaseMemory(ABC):
