@@ -137,6 +137,30 @@ class MemoryTool(Tool):
         except Exception as e:
             return f"添加记忆失败:{str(e)}"
 
+    def search_items(
+        self,
+        query: str,
+        limit: int = 5,
+        memory_type: str = None,
+        memory_types: List[str] = None,
+        min_importance: float = 0.1,
+    ):
+        """结构化检索，供 ContextBuilder 等组装 ContextPacket。
+
+        与 run(action=search) 不同：那边返回给人看的 str；这里返回 List[MemoryItem]。
+
+        错误记录：ContextBuilder 曾直接调 run(search)，拿到 str 却按列表解析会类型错误；
+        Agent 工具链路继续用 run()→str，组装上下文用本方法。
+        """
+        if memory_types is None and memory_type:
+            memory_types = [memory_type]
+        return self.memory_manager.retrieve_memories(
+            query=query,
+            limit=limit,
+            memory_types=memory_types,
+            min_importance=min_importance,
+        )
+
     def _search_memory(
         self,
         query: str,
@@ -146,12 +170,10 @@ class MemoryTool(Tool):
         min_importance: float = 0.1,
     ) -> str:
         try:
-            if memory_types is None and memory_type:
-                memory_types = [memory_type]
-
-            results = self.memory_manager.retrieve_memories(
+            results = self.search_items(
                 query=query,
                 limit=limit,
+                memory_type=memory_type,
                 memory_types=memory_types,
                 min_importance=min_importance,
             )

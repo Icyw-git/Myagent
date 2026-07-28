@@ -3,7 +3,7 @@ from typing import List,Dict,Any,Optional
 from numpy.distutils.from_template import find_and_remove_repl_patterns
 
 from Tool import ToolRegistry
-from test_reflection_agent import result
+# 错误记录：曾误写 `from test_reflection_agent import result`（测试脚本副作用导入，且本文件未使用该符号）
 
 
 class ToolChain:
