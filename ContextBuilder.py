@@ -8,11 +8,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 from hello_agents import HelloAgentsLLM
 
 class ContextBuilder:
+    #实现GSSC的上下文管理器，负责收集、选择、组织和压缩上下文信息
 
     def __init__(self,llm:HelloAgentsLLM,config:Optional[ContextConfig]=None):
         self.config=config or ContextConfig()
         self.memory_tool=MemoryTool()
-        self.rag_tool=None
+        self.rag_tool=None #上下文管理器可以使用rag对外部知识进行检索，暂时不实现
         self.llm=llm
 
 
@@ -31,7 +32,7 @@ class ContextBuilder:
     """
         packets=[]
 
-        if system_instructions:
+        if system_instructions: #系统指令为第一优先级，先注入
             packets.append(
                 ContextPacket(
                     content=system_instructions,
@@ -43,7 +44,7 @@ class ContextBuilder:
                     
                 )
             )
-        if self.memory_tool:
+        if self.memory_tool: #在记忆体中检索相关信息
             try:
                 # 错误记录：曾写 memory_tool.run({'action':'search',...})，run() 返回给人看的 str，
                 # 不能当 List[Dict] 去 _parse_memory_results。结构化检索要用 search_items() → List[MemoryItem]。
@@ -57,7 +58,7 @@ class ContextBuilder:
             except Exception as e:
                 print(f'[Warning] Failed to gather memory context: {e}')
 
-        if self.rag_tool:
+        if self.rag_tool: #在RAG中检索相关信息
             try:
                 rag_results=self.rag_tool.run(
                     {
@@ -72,7 +73,7 @@ class ContextBuilder:
             except Exception as e :
                 print(f'[Warning] Failed to gather RAG context: {e}')
 
-        if conversation_history:
+        if conversation_history: #最近的对话历史
             # 错误记录：这里用了 self.config.max_history，但 ContextConfig 尚未定义该字段，
             # 跑到对话历史分支会 AttributeError；需要在 ContextConfig 里补 max_history 或改成常量。
             recent_history=conversation_history[-self.config.max_history:]
@@ -88,7 +89,7 @@ class ContextBuilder:
 
                     )
                 )
-        if custom_packets:
+        if custom_packets: #自定义信息包
             packets.extend(custom_packets)
 
         print(f'[ContextBuilder] Gathered {len(packets)} candidate context packets')
@@ -106,7 +107,7 @@ class ContextBuilder:
         try:
             import tiktoken
             # cl100k_base 覆盖 GPT-4/多数 OpenAI 兼容场景；非 OpenAI 模型也够做预算
-            enc = tiktoken.get_encoding("cl100k_base")
+            enc = tiktoken.get_encoding("cl100k_base") #使用tiktoken库估算文本token数
             return len(enc.encode(text))
         except Exception:
             # 无 tiktoken 或编码失败时走启发式兜底
@@ -142,7 +143,7 @@ class ContextBuilder:
         for item in memory_results:
             # timestamp 在 MemoryItem 里是 ISO 字符串，转成 datetime 供 ContextPacket 用
             ts = datetime.now()
-            raw_ts = getattr(item, "timestamp", None)
+            raw_ts = getattr(item, "timestamp", None) #使用getattr方法，如果item有timestamp属性，则返回timestamp，否则返回None
             if isinstance(raw_ts, datetime):
                 ts = raw_ts
             elif isinstance(raw_ts, str) and raw_ts:
@@ -195,7 +196,7 @@ class ContextBuilder:
         other_packets=[p for p in packets if getattr(p.metadata,'type')!='system_instruction']
 
         system_tokens=sum(p.token_count for p in system_packets)
-        remaining_tokens=available_tokens-system_tokens
+        remaining_tokens=available_tokens-system_tokens #优先填入系统指令，剩余token用于选择其他信息包
 
         if remaining_tokens<=0:
             print('[Warning] 系统指令已占满所有token预算')
@@ -203,7 +204,7 @@ class ContextBuilder:
 
         scored_packets=[]
         for packet in other_packets:
-            if packet.relevance_score==0.5:
+            if packet.relevance_score==0.5: #若信息包相关性分数为0.5，则计算相关性分数
                 relevance=self._calculate_relevance(packet.content,user_query)
                 packet.relevance_score=relevance
 
@@ -211,9 +212,9 @@ class ContextBuilder:
 
             combined_score=(
                 self.config.relevance_weight*packet.relevance_score+self.config.recency_weight*recency
-            )
+            ) #计算信息包的综合得分
 
-            if packet.relevance_score >=self.config.min_relevance:
+            if packet.relevance_score >=self.config.min_relevance: #若信息包相关性分数大于最小相关性分数，则将信息包加入得分列表
                 scored_packets.append((combined_score,packet))
 
         # 错误记录：下面 sort / 装填 / return 曾缩进进 for 循环内，导致只处理完第一条
@@ -221,12 +222,12 @@ class ContextBuilder:
         scored_packets.sort(key=lambda x:x[0],reverse=True)
 
         selected=system_packets.copy()
-        current_tokens=system_tokens
+        current_tokens=system_tokens #当前已选入的系统指令的token数
 
         for score,packet in scored_packets:
-            if current_tokens+packet.token_count <=available_tokens:
+            if current_tokens+packet.token_count <=available_tokens: #若当前已选入的系统指令的token数加上信息包的token数小于可用的token数，则将信息包加入已选入的信息包列表
                 selected.append(packet)
-                current_tokens+=packet.token_count
+                current_tokens+=packet.token_count #更新当前已选入的系统指令的token数
             else:
                 break
 
@@ -234,12 +235,12 @@ class ContextBuilder:
         return selected
 
     def _calculate_relevance(self,content:str,query:str)->float:
-        sentences=[content,query]
+        sentences=[content,query] #将内容和查询转换为句子
         model=SentenceTransformer('all-MiniLM-L6-v2')
-        embeddings=model.encode(sentences)
+        embeddings=model.encode(sentences) #将句子转换为向量
 
         similarity=cosine_similarity([embeddings[0],embeddings[1]])[0][0]
-        return similarity
+        return similarity #返回相似度
 
     def _calculate_recency(self,timestamp:datetime)->float:
         """计算时间近因性分数
@@ -255,7 +256,7 @@ class ContextBuilder:
         import math
         age_hours=(datetime.now()-timestamp).total_seconds()/3600
         decay_factor=0.1
-        recency_score=math.exp(-decay_factor*age_hours/24)
+        recency_score=math.exp(-decay_factor*age_hours/24) #计算时间近因性分数
         return max(0.1,min(1.0,recency_score))
 
     def _structure(self,selected_packets:List[ContextPacket],user_query:str)->str:
@@ -268,15 +269,15 @@ class ContextBuilder:
             Returns:
                 str: 结构化的上下文字符串
         """
-        system_instructions=[]
-        evidence=[]
-        context=[]
+        system_instructions=[] #系统指令
+        evidence=[] #证据
+        context=[] #上下文
 
         for packet in selected_packets:
-            packet_type=packet.metadata.get('type','general')
+            packet_type=packet.metadata.get('type','general') #获取信息包类型
 
             if packet_type=='system_instruction':
-                system_instructions.append(packet.content)
+                system_instructions.append(packet.content) #将系统指令加入系统指令列表  
             elif packet_type in ['rag_result','knowledge']:
                 evidence.append(packet.content)
             else:
@@ -297,7 +298,7 @@ class ContextBuilder:
 
         sections.append("[Output]\n请根据以上信息，提供准确有据的答案。")
 
-        return '\n\n'.join(sections)
+        return '\n\n'.join(sections) #将各个部分拼接成一个字符串
 
     def _compress(self,context:str,max_tokens:int)->str:
         """压缩超限的上下文
