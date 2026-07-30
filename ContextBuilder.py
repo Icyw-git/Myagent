@@ -10,11 +10,29 @@ from hello_agents import HelloAgentsLLM
 class ContextBuilder:
     #实现GSSC的上下文管理器，负责收集、选择、组织和压缩上下文信息
 
-    def __init__(self,llm:HelloAgentsLLM,config:Optional[ContextConfig]=None):
+    def __init__(self,llm:HelloAgentsLLM,config:Optional[ContextConfig]=None,memory_tool:Optional[MemoryTool]=None):
         self.config=config or ContextConfig()
-        self.memory_tool=MemoryTool()
+        # 可注入共享 MemoryTool（与 Agent 侧 memory 工具同一实例）；默认自建一份
+        self.memory_tool=memory_tool if memory_tool is not None else MemoryTool()
         self.rag_tool=None #上下文管理器可以使用rag对外部知识进行检索，暂时不实现
         self.llm=llm
+
+    def build(self,user_query:str,conversation_history:Optional[List[Message]]=None,system_instructions:Optional[str]=None,custom_packets:Optional[List[ContextPacket]]=None,custom_context:Optional[List[ContextPacket]]=None,include_task_sections:bool=True)->str:
+        # include_task_sections=True：独立问答模板（含 [Task]/[Output]）
+        # False：只出背景（Role/Evidence/Context），给 ReAct 等自带格式的 Agent 当 system
+        #gather
+        packets=self._gather(user_query,conversation_history,system_instructions,custom_packets,custom_context)
+        #select
+        selected_packets=self._select(packets,user_query,self.config.max_tokens)
+        #structure
+        structured_context=self._structure(selected_packets,user_query,include_task_sections=include_task_sections)
+        #compress
+        if self.config.enable_compression:
+            compressed_context=self._compress(structured_context,self.config.max_tokens)
+            return compressed_context
+        else:
+            return structured_context[:self.config.max_tokens]
+
 
 
 
@@ -76,6 +94,7 @@ class ContextBuilder:
         if conversation_history: #最近的对话历史
             # 错误记录：这里用了 self.config.max_history，但 ContextConfig 尚未定义该字段，
             # 跑到对话历史分支会 AttributeError；需要在 ContextConfig 里补 max_history 或改成常量。
+            # 已补：ContextConfig.max_history（条数）；max_history_tokens 留给按 token 截断。
             recent_history=conversation_history[-self.config.max_history:]
             for msg in recent_history:
                 packets.append(
@@ -192,8 +211,10 @@ class ContextBuilder:
         # 错误记录：metadata 是 dict，不能用 getattr(p.metadata,'type')（属性不存在会当 None）。
         # 应写 p.metadata.get('type')。另外上面写入的是 'system_instructions'，这里却比
         # 'system_instruction'，类型名不一致会导致系统包选不出来。
-        system_packets=[p for p in packets if getattr(p.metadata,'type')=='system_instruction']
-        other_packets=[p for p in packets if getattr(p.metadata,'type')!='system_instruction']
+        # 已统一：写入/读取都用 'system_instructions'，并用 .get。
+        _sys='system_instructions'
+        system_packets=[p for p in packets if (p.metadata or {}).get('type')==_sys]
+        other_packets=[p for p in packets if (p.metadata or {}).get('type')!=_sys]
 
         system_tokens=sum(p.token_count for p in system_packets)
         remaining_tokens=available_tokens-system_tokens #优先填入系统指令，剩余token用于选择其他信息包
@@ -259,12 +280,14 @@ class ContextBuilder:
         recency_score=math.exp(-decay_factor*age_hours/24) #计算时间近因性分数
         return max(0.1,min(1.0,recency_score))
 
-    def _structure(self,selected_packets:List[ContextPacket],user_query:str)->str:
+    def _structure(self,selected_packets:List[ContextPacket],user_query:str,include_task_sections:bool=True)->str:
         """将选中的信息包组织成结构化的上下文模板
 
             Args:
                 selected_packets: 选中的信息包列表
                 user_query: 用户查询
+                include_task_sections: True 时拼 [Task]/[Output]（独立问答）；
+                    False 时只出背景段，避免与 ReAct 等 Agent 模板抢指令
 
             Returns:
                 str: 结构化的上下文字符串
@@ -276,7 +299,8 @@ class ContextBuilder:
         for packet in selected_packets:
             packet_type=packet.metadata.get('type','general') #获取信息包类型
 
-            if packet_type=='system_instruction':
+            # 与 _gather 写入的 'system_instructions' 对齐（旧注释里的 system_instruction 已弃用）
+            if packet_type=='system_instructions':
                 system_instructions.append(packet.content) #将系统指令加入系统指令列表  
             elif packet_type in ['rag_result','knowledge']:
                 evidence.append(packet.content)
@@ -288,7 +312,8 @@ class ContextBuilder:
         if system_instructions:
             sections.append("[Role & Policies]\n"+'\n'.join(system_instructions))
 
-        sections.append(f'[Task]\n{user_query}')
+        if include_task_sections:
+            sections.append(f'[Task]\n{user_query}')
 
         if evidence:
             sections.append("[Evidence]\n"+"\n---\n".join(evidence))
@@ -296,7 +321,8 @@ class ContextBuilder:
         if context:
             sections.append("[Context]\n"+'\n'.join(context))
 
-        sections.append("[Output]\n请根据以上信息，提供准确有据的答案。")
+        if include_task_sections:
+            sections.append("[Output]\n请根据以上信息，提供准确有据的答案。")
 
         return '\n\n'.join(sections) #将各个部分拼接成一个字符串
 

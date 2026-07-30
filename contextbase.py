@@ -48,6 +48,8 @@ class ContextConfig:
     enable_compression:bool=True
     recency_weight:float=0.3
     relevance_weight:float=0.7
+    max_history:int=10  # _gather 截取最近 N 条对话；与 max_history_tokens 不同义
+    max_history_tokens:int=100  # TODO: 按 token 预算截历史时再用；当前切片仍用 max_history
 
     def __post_init__(self): #对上面初始化的属性进行检验
         assert 0.0<=self.reserve_ratio<=1.0, "reserve_ratio must be between 0.0 and 1.0"
