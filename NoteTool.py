@@ -1,13 +1,44 @@
-from importlib.metadata import metadata
 from typing import List,Optional,Dict,Any,Tuple
 from datetime import datetime
 import yaml
 import os
 
-from click.termui import raw_terminal
 
 
 class NoteTool:
+    def __init__(self,workspace:str='./notes'):
+        # 1) 工作目录：笔记 .md 与 index.yaml 都落在这里
+        self.workspace=workspace
+        os.makedirs(self.workspace,exist_ok=True)
+        # 2) 索引文件：用 YAML 存 {note_id: metadata}，避免每次全目录扫
+        self.index_file=os.path.join(self.workspace,'index.yaml')
+        # 3) 启动时把索引读进内存；无文件则空 dict（见 _load_index）
+        self.index=self._load_index()
+
+    def _load_index(self)->Dict[str,Any]:
+        """从 index.yaml 加载笔记索引。
+
+        错误记录：__init__ 直接 self.index=self._load_index()，若未实现本方法会 AttributeError。
+        文件不存在 / 空文件 / YAML 非法时，应回退为空 dict，不要让初始化炸掉。
+        """
+        if not os.path.exists(self.index_file):
+            return {}
+        try:
+            with open(self.index_file,'r',encoding='utf-8') as f:
+                data=yaml.safe_load(f)
+            # safe_load 空文件会返回 None；索引约定是 dict
+            return data if isinstance(data,dict) else {}
+        except Exception as e:
+            print(f'[Warning] 加载笔记索引失败，使用空索引：{e}')
+            return {}
+
+    def _save_index(self)->None:
+        """把内存中的 self.index 写回 index.yaml。
+
+        create/update/delete 后都要调，否则重启后索引与磁盘 .md 不一致。
+        """
+        with open(self.index_file,'w',encoding='utf-8') as f:
+            yaml.dump(self.index,f,allow_unicode=True,sort_keys=False)
 
 
 
@@ -48,8 +79,8 @@ class NoteTool:
             f.write(md_content)
 
 
-        metadata['file_path']=file_path
-        self.index[note_id]=metadata
+        metadata['file_path']=file_path #元数据中存储路径
+        self.index[note_id]=metadata #元数据存储到内存中
         self._save_index()
 
         return note_id
@@ -73,12 +104,12 @@ class NoteTool:
 
         if note_id not in self.index:
             raise ValueError(f'笔记ID {note_id} 不存在')
-        file_path=self.index[note_id]['file_path']
+        file_path=self.index[note_id]['file_path'] #读取元数据
 
         with open(file_path,'r',encoding='utf-8') as f:
             raw_content=f.read()
 
-        metadata,content=self._parse_markdown(raw_content)
+        metadata,content=self._parse_markdown(raw_content) #解析 Markdown 文件，分离 YAML 和正文
 
         return {
             'metadata':metadata,
@@ -87,12 +118,12 @@ class NoteTool:
 
     def _parse_markdown(self,raw_content:str)->Tuple[Dict,str]:
         """解析 Markdown 文件(分离 YAML 和正文)"""
-        parts=raw_content.split('---\n',2)
+        parts=raw_content.split('---\n',2) #这里使用 2 作为 maxsplit，确保只分割前两个 '---\n'，避免正文中出现 '---\n' 时被误分割
 
         if len(parts)>=3:
             yaml_str=parts[1]
             content=parts[2].strip()
-            metadata=yaml.safe_load(yaml_str)
+            metadata=yaml.safe_load(yaml_str) #safe_load是解析字符串然后返回一个Python对象，通常是字典或列表
 
         else:
             metadata={}
@@ -139,8 +170,12 @@ class NoteTool:
 
         metadata['updated_at']=datetime.now().isoformat()
 
-        md_content=self._build_markdown(metadata,old_content)
-        file_path=metadata['file_path']
+        # 错误记录：file_path 只写在 self.index 里，_build_markdown 时尚未写入 .md 的 YAML；
+        # 若用 note['metadata']['file_path'] 会 KeyError。路径一律从索引取，再写回 metadata。
+        file_path=self.index[note_id]['file_path']
+        metadata['file_path']=file_path
+
+        md_content=self._build_markdown(metadata,old_content) #构建新的 Markdown 内容
         with open(file_path,'w',encoding='utf-8') as f:
             f.write(md_content)
 
@@ -177,7 +212,7 @@ class NoteTool:
 
             if tags:
                 note_tags=set(metadata.get('tags',[]))
-                if not note_tags.intersection(tags):
+                if not note_tags.intersection(tags): #使用 set.intersection() 检查是否有交集
                     continue
 
             try:
