@@ -1,7 +1,10 @@
 import os 
 from dotenv import load_dotenv
 from typing import List ,Dict,Any,Optional,Literal
-from serpapi import GoogleSearch
+try:
+    from serpapi import GoogleSearch
+except ImportError:  # keep offline calculator/bench usable without search extras
+    GoogleSearch = None
 from llm_client import Myagent #使用通用的llm_client模块
 import re
 from pydantic import BaseModel #使用pydantic进行json格式的规定和检查
@@ -21,6 +24,8 @@ def search(query:str)->str:
 
     print(f'正在执行{query}的搜索...')
     try:
+        if GoogleSearch is None:
+            return '搜索工具不可用：请安装 google-search-results（而非同名 serpapi 包）。'
         api_key=os.getenv('SERPAPI_API_KEY')
         if not api_key:
             raise ValueError("SERPAPI-API-KEY未设置，请在.env文件中设置该环境变量。")

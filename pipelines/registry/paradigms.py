@@ -43,6 +43,8 @@ def build_paradigm(spec: PipelineSpec, memory: Any = None):
             f"tools={spec.tools} 将被忽略（对比工具轴请用 simple/react/hybrid）"
         )
 
+    if spec.paradigm == "react":
+        return _build_react(spec, memory=memory)
     return builders[spec.paradigm](spec)
 
 
@@ -62,12 +64,23 @@ def _build_simple(spec: PipelineSpec):
     )
 
 
-def _build_react(spec: PipelineSpec):
+def _build_react(spec: PipelineSpec, memory: Any = None):
     from hello_agents import HelloAgentsLLM
     from my_react_agent import MyReActAgent
 
     llm = HelloAgentsLLM()
     registry = build_hello_registry(spec.tools)
+    if memory is not None:
+        from my_react_agent_context import ContextAwareAgent
+
+        return ContextAwareAgent(
+            name=f"pipe_{spec.tag}",
+            llm=llm,
+            tool_registry=registry,
+            max_steps=5,
+            memory_tool=memory,
+            register_memory_tool=True,
+        )
     return MyReActAgent(
         name=f"pipe_{spec.tag}",
         llm=llm,

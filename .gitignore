@@ -1,0 +1,45 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and packaging artifacts
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE and editor settings
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# Local runtime data and generated traces
+memory_data/
+tests/memory_data/
+memory/traces/
+tool-output/
+
+# Generated evaluation reports (keep evaluation cases and README files)
+eval_results/*.txt
+eval_results/*.jsonl
+
+# OS files
+.DS_Store
+Thumbs.db
+
