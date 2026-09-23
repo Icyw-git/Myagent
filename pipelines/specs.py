@@ -3,7 +3,7 @@ Pipeline 三维规格
 
 范式轴 paradigm: simple | react | hybrid | plan | tot | reflection
 工具轴 tools:     none | search | calc | search+calc | bench
-记忆轴 memory:    off | working | episodic | rag（目前只实现 off）
+记忆轴 memory:    off | working | episodic | rag（working 仅接入 ReAct）
 
 bench：能力评测用（TicketDesk + calculator），见 eval/bench/
 """

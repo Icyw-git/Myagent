@@ -1,21 +1,21 @@
 from contextbase import ContextPacket, ContextConfig
-from typing import List, Optional, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from Message import Message
 from datetime import datetime
 from memory_src.memory_tool import MemoryTool
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-from hello_agents import HelloAgentsLLM
+if TYPE_CHECKING:
+    from hello_agents import HelloAgentsLLM
 
 class ContextBuilder:
     #实现GSSC的上下文管理器，负责收集、选择、组织和压缩上下文信息
 
-    def __init__(self,llm:HelloAgentsLLM,config:Optional[ContextConfig]=None,memory_tool:Optional[MemoryTool]=None):
+    def __init__(self,llm:Optional["HelloAgentsLLM"],config:Optional[ContextConfig]=None,memory_tool:Optional[MemoryTool]=None):
         self.config=config or ContextConfig()
         # 可注入共享 MemoryTool（与 Agent 侧 memory 工具同一实例）；默认自建一份
-        self.memory_tool=memory_tool if memory_tool is not None else MemoryTool()
+        self.memory_tool = memory_tool if memory_tool is not None else MemoryTool(memory_types=["working"])
         self.rag_tool=None #上下文管理器可以使用rag对外部知识进行检索，暂时不实现
         self.llm=llm
+        self._relevance_model = None
 
     def build(self,user_query:str,conversation_history:Optional[List[Message]]=None,system_instructions:Optional[str]=None,custom_packets:Optional[List[ContextPacket]]=None,custom_context:Optional[List[ContextPacket]]=None,include_task_sections:bool=True)->str:
         # include_task_sections=True：独立问答模板（含 [Task]/[Output]）
@@ -173,6 +173,7 @@ class ContextBuilder:
 
             content = getattr(item, "content", "") or ""  #getattr方法，如果item有content属性，则返回content，否则返回空字符串
             importance = float(getattr(item, "importance", 0.5) or 0.5)
+            retrieval_score = float((getattr(item, "metadata", {}) or {}).get("retrieval_score", importance))
             memory_type = getattr(item, "memory_type", "unknown")
 
             packets.append(
@@ -180,7 +181,7 @@ class ContextBuilder:
                     content=content,
                     timestamp=ts,
                     token_count=self._count_tokens(content),
-                    relevance_score=importance,  # 暂无独立相关分，用 importance 顶上
+                    relevance_score=retrieval_score,
                     metadata={
                         "type": "memory_result",
                         "source": memory_type,
@@ -256,12 +257,26 @@ class ContextBuilder:
         return selected
 
     def _calculate_relevance(self,content:str,query:str)->float:
-        sentences=[content,query] #将内容和查询转换为句子
-        model=SentenceTransformer('all-MiniLM-L6-v2')
-        embeddings=model.encode(sentences) #将句子转换为向量
+        try:
+            from sentence_transformers import SentenceTransformer
+            from sklearn.metrics.pairwise import cosine_similarity
 
-        similarity=cosine_similarity([embeddings[0],embeddings[1]])[0][0]
-        return similarity #返回相似度
+            if self._relevance_model is None:
+                self._relevance_model = SentenceTransformer("all-MiniLM-L6-v2")
+            embeddings = self._relevance_model.encode([content, query])
+            return float(cosine_similarity([embeddings[0]], [embeddings[1]])[0][0])
+        except ImportError:
+            return self._keyword_relevance(content, query)
+
+    @staticmethod
+    def _keyword_relevance(content: str, query: str) -> float:
+        import jieba
+
+        query_tokens = {token.strip() for token in jieba.lcut(query) if token.strip()}
+        if not query_tokens:
+            return 0.0
+        content_tokens = {token.strip() for token in jieba.lcut(content) if token.strip()}
+        return len(query_tokens & content_tokens) / len(query_tokens)
 
     def _calculate_recency(self,timestamp:datetime)->float:
         """计算时间近因性分数

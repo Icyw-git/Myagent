@@ -4,6 +4,7 @@ import re
 from hello_agents import ReActAgent,ToolRegistry,HelloAgentsLLM
 from Message import Message
 from Config import Config
+from pipelines.common.agent_result import AgentResult
 import json 
 
 
@@ -56,12 +57,14 @@ class MyReActAgent(ReActAgent):
         self.tool_registry=tool_registry
         self.max_steps=max_steps
         self.current_history:List[str]=[]
+        self.last_run_result: Optional[AgentResult] = None
         self.prompt_template=custom_prompt if custom_prompt else MY_REACT_PROMPT
         print(f'{name}初始化完成')
 
     def run(self,input_text:str,**kwargs)->str: #agent循环类似，每一步都调用llm生成响应，解析响应中的动作，执行工具调用，并将结果添加到历史记录中，直到达到最大步数或完成任务
         self.current_history=[]
         current_step=0
+        tool_calls=0
 
         print(f'{self.name}开始处理问题：{input_text}')
         while current_step<self.max_steps:
@@ -105,6 +108,7 @@ class MyReActAgent(ReActAgent):
                 self.add_message(Message(input_text,'user'))
                 self.add_message((Message(final_answer,'assistant')))
                 print(f'最终答案: {final_answer}')
+                self.last_run_result = AgentResult(final_answer, current_step, tool_calls)
                 return final_answer
 
             if action:
@@ -121,6 +125,7 @@ class MyReActAgent(ReActAgent):
                 # 正确写法：try/except 捕获所有异常，将异常信息转为 observation 追加到 history，
                 #          让 LLM 看到错误后可以自行调整策略、选择其他工具或重试。
                 try:
+                    tool_calls += 1
                     observation=self.tool_registry.execute_tool(tool_name,tool_input)
                 except Exception as e:
                     observation=f'工具执行异常: {e}'
@@ -134,7 +139,12 @@ class MyReActAgent(ReActAgent):
         self.add_message(Message(input_text,'user'))
         self.add_message(Message(final_answer,'assistant'))
         print(f'最终答案: {final_answer}')
+        self.last_run_result = AgentResult(final_answer, current_step, tool_calls)
         return final_answer
+
+    def run_with_result(self, input_text: str, **kwargs) -> AgentResult:
+        answer = self.run(input_text, **kwargs)
+        return self.last_run_result or AgentResult(answer)
 
     def _parse_output(self,text:str):
         # 使用正则表达式解析 LLM 输出，提取 Thought 和 Action

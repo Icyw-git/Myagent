@@ -95,7 +95,10 @@ class MemoryManager:
             for m in hits:
                 if m.importance >= min_importance:
                     merged.append(m)
-        merged.sort(key=lambda m: m.importance, reverse=True)
+        merged.sort(
+            key=lambda m: float((m.metadata or {}).get("retrieval_score", m.importance)),
+            reverse=True,
+        )
         return merged[:limit]
 
     def consolidate_memories(

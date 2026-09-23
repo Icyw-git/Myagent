@@ -20,12 +20,8 @@ _TOOL_AWARE = frozenset({"simple", "react", "hybrid"})
 def build_paradigm(spec: PipelineSpec, memory: Any = None):
     """
     按 paradigm 构造 Agent。
-    memory 第一版未使用（memory 轴仅 off）；预留参数避免以后改签名。
+    working memory 当前由 ContextAwareAgent 接入 ReAct。
     """
-    if memory is not None:
-        # 占位：以后把 MemoryTool 塞进 registry
-        pass
-
     builders = {
         "simple": _build_simple,
         "react": _build_react,
@@ -36,6 +32,12 @@ def build_paradigm(spec: PipelineSpec, memory: Any = None):
     }
     if spec.paradigm not in builders:
         raise ValueError(f"未知 paradigm={spec.paradigm}")
+
+    if memory is not None and spec.paradigm != "react":
+        raise NotImplementedError(
+            f"memory={spec.memory} 当前仅支持 paradigm=react，"
+            f"不支持 {spec.paradigm}，避免配置被静默忽略。"
+        )
 
     if spec.paradigm not in _TOOL_AWARE and spec.tools != "none":
         print(

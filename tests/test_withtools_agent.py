@@ -10,12 +10,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+
+pytest.importorskip("hello_agents", reason="ContextToolsAgent requires hello-agents")
 
 from memory_src import MemoryConfig, MemoryTool
 from NoteTool import NoteTool

@@ -9,6 +9,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import pytest
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -18,6 +20,8 @@ if str(_ROOT) not in sys.path:
 
 from TerminalTool import TerminalTool
 
+pytestmark = pytest.mark.integration
+
 
 def _assert(cond: bool, msg: str) -> None:
     if not cond:
@@ -25,7 +29,9 @@ def _assert(cond: bool, msg: str) -> None:
 
 
 def test_terminal_tool() -> None:
-    with tempfile.TemporaryDirectory(prefix="terminal_tool_test_") as tmp:
+    temp_root = _ROOT / ".test_tmp"
+    temp_root.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="terminal_tool_test_", dir=temp_root) as tmp:
         workspace = Path(tmp) / "ws"
         sub = workspace / "sub"
         nested = sub / "deep"
@@ -49,7 +55,12 @@ def test_terminal_tool() -> None:
         _assert("hello_world" in out, f"echo 应含 hello_world，实际={out!r}")
         print("通过\n")
 
-        print("=== 3) _execute_command：失败返回码 ===")
+        print("=== 3) _execute_command：拒绝 shell 与非白名单命令 ===")
+        denied = tool._execute_command("cmd /c dir")
+        _assert("被拒绝" in denied, f"cmd 不应被执行，实际={denied}")
+        print("通过\n")
+
+        print("=== 4) _execute_command：失败返回码 ===")
         # Windows: cmd /c exit 1；跨平台用 python 更稳
         fail = tool._execute_command(
             f'"{sys.executable}" -c "import sys; sys.exit(2)"'

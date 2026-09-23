@@ -34,6 +34,7 @@ memory_data/
 tests/memory_data/
 memory/traces/
 tool-output/
+.test_tmp/
 
 # Generated evaluation reports (keep evaluation cases and README files)
 eval_results/*.txt
@@ -42,4 +43,3 @@ eval_results/*.jsonl
 # OS files
 .DS_Store
 Thumbs.db
-

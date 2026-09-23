@@ -3,6 +3,7 @@
 对比串行执行 vs 并行执行，直观展示加速效果。
 """
 import asyncio
+import pytest
 import time
 import sys
 import os
@@ -14,6 +15,8 @@ if sys.platform == 'win32':
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from async_tool_executor import AsyncToolExecutor
+
+pytestmark = pytest.mark.integration
 from Tool import Tool, ToolParameter, ToolRegistry
 from typing import Dict, Any, List
 

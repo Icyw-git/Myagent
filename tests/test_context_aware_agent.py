@@ -11,6 +11,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -112,6 +114,7 @@ def test_system_type_and_history() -> None:
 
 
 def test_agent_wires_context_config() -> None:
+    pytest.importorskip("hello_agents", reason="ContextAwareAgent requires hello-agents")
     print("=== 4) ContextAwareAgent 把 context_config 传进 builder ===")
     from my_react_agent_context import ContextAwareAgent
     from pipelines.registry.tools import build_hello_registry
@@ -148,6 +151,7 @@ def test_agent_wires_context_config() -> None:
     print("通过\n")
 
 
+@pytest.mark.online
 def test_online_search_full_flow() -> None:
     """全流程：ContextBuilder 背景 + ReAct 循环 + SerpAPI search。"""
     print("=== 5) 联网全流程：ContextAwareAgent + search ===")
@@ -206,6 +210,7 @@ def test_online_search_full_flow() -> None:
     print("通过\n")
 
 
+@pytest.mark.online
 def test_online_memory_full_flow() -> None:
     """联网双轨记忆：被动 build 召回 + 主动 memory 工具写入 + 下轮被动召回。"""
     print("=== 6) 联网全流程：被动召回 + 主动 memory ===")

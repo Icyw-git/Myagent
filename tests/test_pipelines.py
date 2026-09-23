@@ -26,9 +26,13 @@ from pipelines.common.report import (
     print_final_summary,
 )
 from pipelines.common.result import RunResult
+from pipelines.common.agent_result import AgentResult
+from pipelines.factory import PipelineHandle, run_pipeline
 from pipelines.registry.memory import build_memory
+from pipelines.registry.paradigms import build_paradigm
 from pipelines.registry.tools import list_tool_fns
 from pipelines.specs import PRESETS, PipelineSpec
+from memory_src import MemoryConfig, MemoryItem, MemoryManager
 
 
 def _assert(cond: bool, msg: str) -> None:
@@ -100,6 +104,58 @@ def test_memory_not_ready():
         raise AssertionError("应抛 NotImplementedError")
     except NotImplementedError:
         pass
+
+
+def test_working_memory_rejects_non_react_pipeline():
+    memory = build_memory("working")
+    spec = PipelineSpec(paradigm="simple", tools="none", memory="working")
+    try:
+        build_paradigm(spec, memory=memory)
+        raise AssertionError("应拒绝会静默忽略 memory 的范式组合")
+    except NotImplementedError as e:
+        _assert("仅支持 paradigm=react" in str(e), str(e))
+
+
+def test_manager_preserves_retrieval_score_across_memory_types():
+    class _Store:
+        def __init__(self, item):
+            self.item = item
+
+        def retrieve(self, query, **kwargs):
+            return [self.item]
+
+    manager = MemoryManager(
+        MemoryConfig(),
+        enable_working=False,
+        enable_episodic=False,
+        enable_semantic=False,
+    )
+    relevant = MemoryItem(
+        content="匹配结果",
+        importance=0.2,
+        metadata={"retrieval_score": 0.9},
+    )
+    important = MemoryItem(
+        content="不匹配结果",
+        importance=0.9,
+        metadata={"retrieval_score": 0.1},
+    )
+    manager.memory_types = {"one": _Store(relevant), "two": _Store(important)}
+
+    hits = manager.retrieve_memories("测试", limit=2)
+    _assert(hits == [relevant, important], "应按 retrieval_score 而不是 importance 排序")
+
+
+def test_pipeline_uses_agent_result_metrics():
+    class _Agent:
+        def run_with_result(self, question):
+            print("unstructured trace")
+            return AgentResult(answer="完成", steps=4, tool_calls=2)
+
+    handle = PipelineHandle(PipelineSpec("react", "none", "off"), _Agent())
+    result = run_pipeline("测试", handle=handle)
+    _assert(result.answer == "完成", result.answer)
+    _assert(result.steps == 4 and result.tool_calls == 2, f"{result.steps}, {result.tool_calls}")
 
 
 # ---- metrics ----

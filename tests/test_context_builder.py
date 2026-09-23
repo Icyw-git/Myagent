@@ -12,7 +12,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from dotenv import load_dotenv
-from hello_agents import HelloAgentsLLM
 
 from ContextBuilder import ContextBuilder
 from contextbase import ContextConfig
@@ -26,6 +25,8 @@ def _assert(cond: bool, msg: str) -> None:
 
 
 def main() -> None:
+    from hello_agents import HelloAgentsLLM
+
     llm = HelloAgentsLLM()
     builder = ContextBuilder(llm=llm, config=ContextConfig(max_tokens=3000))
 

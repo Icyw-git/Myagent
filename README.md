@@ -52,13 +52,13 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-大部分 Agent 使用课程配套的 `hello_agents` 包，需保证它已在当前环境可导入。若要使用完整记忆检索，还可按需安装：
+`hello_agents` 已包含在 `requirements.txt` 中。若要使用本地语义相关性或完整向量记忆检索，还可按需安装：
 
 ```bash
 python -m pip install qdrant-client sentence-transformers
 ```
 
-其中，工作记忆和离线测试不要求 Qdrant；嵌入服务会按“OpenAI 兼容接口 → 本地 `sentence-transformers` → TF-IDF”依次回退。
+其中，工作记忆和离线测试不要求 Qdrant；未安装 `sentence-transformers` 时，上下文选择会使用轻量关键词相关性。
 
 ## 配置
 
@@ -107,7 +107,7 @@ python tests/test_withtools_agent.py
 也可以通过 pytest 执行：
 
 ```bash
-python -m pytest tests/test_pipelines.py tests/test_eval_bench.py -v
+python -m pytest -m unit -v
 ```
 
 ## Pipeline 对比
@@ -118,7 +118,7 @@ python -m pytest tests/test_pipelines.py tests/test_eval_bench.py -v
 | --- | --- | --- |
 | 范式 | `simple`、`react`、`hybrid`、`plan`、`tot`、`reflection` | 六种 Agent 实现 |
 | 工具 | `none`、`search`、`calc`、`search+calc`、`bench` | 搜索、计算或可复现评测工具 |
-| 记忆 | `off`、`working`、`episodic`、`rag` | Pipeline 当前支持 `off` 与纯内存 `working` |
+| 记忆 | `off`、`working`、`episodic`、`rag` | `working` 当前仅接入 `react`；其他范式会明确拒绝该组合 |
 
 运行默认 A/B 预设：
 
@@ -165,9 +165,18 @@ python eval/bench/run_bench.py --case tk_get --paradigm react
 ## 当前实现状态
 
 - `simple`、`react`、`hybrid` 会使用 Pipeline 的工具轴；`plan`、`tot`、`reflection` 当前不调用外部工具。
-- `memory_src/` 已提供多类记忆及 `MemoryTool`；Pipeline 已接通 `off` 与 `working`，`episodic`、`semantic`、`rag` 仍会明确报出未实现。
+- `memory_src/` 已提供多类记忆及 `MemoryTool`；Pipeline 的 `working` memory 当前仅接入 ReAct，`episodic`、`semantic`、`rag` 仍会明确报出未实现。
 - 搜索与真实 Agent 示例需要有效的 LLM 配置；离线测试用于验证工厂、评测环境、上下文和工具组件，不消耗模型调用。
-- `TerminalTool` 会在指定工作目录内执行命令。将其用于不可信输入前，应先根据实际部署场景收紧命令策略。
+- `TerminalTool` 只执行允许列表中的直接命令，不通过 shell 运行管道或重定向；可在构造时用 `allowed_commands` 收紧或调整列表。
+- Pipeline 对支持统一结果接口的 Agent 使用真实步骤数和工具调用数；旧 Agent 暂时回退到 stdout 估算。
+
+默认离线测试：
+
+```bash
+python -m pytest -m unit -q
+```
+
+需要额外运行集成工具测试时使用 `python -m pytest -m integration -q`；需要 LLM 或外部服务的测试标记为 `online`。
 
 ## 后续学习方向
 

@@ -81,6 +81,8 @@ class WorkingMemory(BaseMemory):
             final_scores.append((memory, final_score))
 
         final_scores.sort(key=lambda x: x[1], reverse=True)
+        for memory, score in final_scores:
+            memory.metadata["retrieval_score"] = score
         results = [memory for memory, _ in final_scores[:limit]]
         # 命中即记一次访问，供 Manager 的 smart 遗忘算「访问频率」
         for memory in results:

@@ -6,6 +6,7 @@ from my_react_agent import MyReActAgent
 from typing import Optional, List
 from Message import Message
 from Config import Config
+from pipelines.common.agent_result import AgentResult
 from datetime import datetime
 from memory_src import MemoryTool
 import json
@@ -59,6 +60,7 @@ class ContextAwareAgent(MyReActAgent):
         print(f'{self.name}正在处理：{input_text}')
         self.current_history=[]
         current_step=0
+        tool_calls=0
 
         custom_packets=self._build_custom_context(self.custom_context)
         background=self.context_builder.build(
@@ -91,6 +93,7 @@ class ContextAwareAgent(MyReActAgent):
                 self.add_message(Message(input_text,'user'))
                 self.add_message(Message(final_answer,'assistant'))
                 print(f'最终答案：{final_answer}')
+                self.last_run_result = AgentResult(final_answer, current_step, tool_calls)
                 return final_answer
 
             if action:
@@ -102,6 +105,7 @@ class ContextAwareAgent(MyReActAgent):
                     continue
 
                 try:
+                    tool_calls += 1
                     observation=self.tool_registry.execute_tool(tool_name,tool_input)
                 except Exception as e:
                     observation=f'工具执行失败:{str(e)}'
@@ -115,4 +119,5 @@ class ContextAwareAgent(MyReActAgent):
         self.add_message(Message(input_text,'user'))
         self.add_message(Message(final_answer,'assistant'))
         print(f'最终答案：{final_answer}')
+        self.last_run_result = AgentResult(final_answer, current_step, tool_calls)
         return final_answer
