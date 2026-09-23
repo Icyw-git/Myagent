@@ -151,6 +151,35 @@ def test_agent_wires_context_config() -> None:
     print("通过\n")
 
 
+def test_agent_stops_after_max_steps() -> None:
+    pytest.importorskip("hello_agents", reason="ContextAwareAgent requires hello-agents")
+    from my_react_agent_context import ContextAwareAgent
+    from pipelines.registry.tools import build_hello_registry
+
+    class _NonFinishingLLM:
+        calls = 0
+
+        def invoke(self, messages, **kwargs):
+            self.calls += 1
+            return "Thought: 继续分析\nAction:"
+
+    llm = _NonFinishingLLM()
+    agent = ContextAwareAgent(
+        name="步数边界测试",
+        llm=llm,  # type: ignore[arg-type]
+        tool_registry=build_hello_registry("none"),
+        max_steps=2,
+        context_config=ContextConfig(enable_compression=False),
+        register_memory_tool=False,
+    )
+    agent.context_builder.memory_tool = None
+    answer = agent.run("测试步数限制")
+
+    _assert(llm.calls == 2, f"LLM 调用次数应为 max_steps=2，实际={llm.calls}")
+    _assert(agent.last_run_result.steps == 2, "结果中的 steps 不应超过 max_steps")
+    _assert(bool(answer), "达到步数上限时也应返回说明")
+
+
 @pytest.mark.online
 def test_online_search_full_flow() -> None:
     """全流程：ContextBuilder 背景 + ReAct 循环 + SerpAPI search。"""

@@ -58,11 +58,18 @@ def test_terminal_tool() -> None:
         print("=== 3) _execute_command：拒绝 shell 与非白名单命令 ===")
         denied = tool._execute_command("cmd /c dir")
         _assert("被拒绝" in denied, f"cmd 不应被执行，实际={denied}")
+        _assert("python" in tool._execute_command("python --version"), "默认不应允许 Python 解释器")
         print("通过\n")
 
         print("=== 4) _execute_command：失败返回码 ===")
         # Windows: cmd /c exit 1；跨平台用 python 更稳
-        fail = tool._execute_command(
+        trusted_tool = TerminalTool(
+            workspace=str(workspace),
+            allowed_commands=[Path(sys.executable).name],
+            timeout=10,
+            max_output_size=200,
+        )
+        fail = trusted_tool._execute_command(
             f'"{sys.executable}" -c "import sys; sys.exit(2)"'
         )
         print(f"exit2 -> {fail[:120]!r}...")
@@ -71,7 +78,7 @@ def test_terminal_tool() -> None:
 
         print("=== 4) _execute_command：输出截断 ===")
         # 生成超过 max_output_size=200 的输出
-        big = tool._execute_command(
+        big = trusted_tool._execute_command(
             f'"{sys.executable}" -c "print(\'X\'*500)"'
         )
         print(f"截断后长度={len(big)}, 尾部={big[-40:]!r}")
@@ -80,7 +87,12 @@ def test_terminal_tool() -> None:
         print("通过\n")
 
         print("=== 5) _execute_command：超时 ===")
-        slow = TerminalTool(workspace=str(workspace), timeout=1, max_output_size=10000)
+        slow = TerminalTool(
+            workspace=str(workspace),
+            timeout=1,
+            max_output_size=10000,
+            allowed_commands=[Path(sys.executable).name],
+        )
         t0 = time.time()
         timed = slow._execute_command(
             f'"{sys.executable}" -c "import time; time.sleep(5)"'
@@ -140,7 +152,10 @@ def test_terminal_tool() -> None:
         print("通过\n")
 
         print("=== 9) 切换目录后命令在新 cwd 执行 ===")
-        tool2 = TerminalTool(workspace=str(workspace))
+        tool2 = TerminalTool(
+            workspace=str(workspace),
+            allowed_commands=[Path(sys.executable).name],
+        )
         tool2._handle_cd(["cd", "sub"])
         # 用 python 读当前目录下的 a.txt
         read_out = tool2._execute_command(

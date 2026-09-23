@@ -23,7 +23,7 @@ class TerminalTool:
         self.max_output_size=max_output_size
         self.allowed_commands = {
             command.lower()
-            for command in (allowed_commands or ("python", "python.exe", "git", "git.exe", "pip", "pip.exe", "pytest", "pytest.exe", "echo", "dir"))
+            for command in (allowed_commands if allowed_commands is not None else ("echo", "dir"))
         }
 
 

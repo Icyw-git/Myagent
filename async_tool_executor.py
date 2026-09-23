@@ -10,6 +10,15 @@ class AsyncToolExecutor:
         self.registry=registry
         self.executor=concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) #作用是创建一个线程池执行器，允许你在后台线程中并发执行任务，从而提高程序的性能和响应能力。通过指定max_workers参数，你可以控制线程池中同时运行的最大线程数，以便根据任务的性质和系统资源进行优化。
 
+    def close(self) -> None:
+        self.executor.shutdown(wait=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     async def execute_tool_async(self,tool_name:str,input_data:str)->str:
 
         loop=asyncio.get_event_loop() #作用是获取当前线程的事件循环对象，它是异步编程的核心，用于调度和管理异步任务。通过事件循环，你可以注册协程、回调函数和I/O操作，从而实现非阻塞的并发执行。在异步函数中，通常使用await关键字等待协程的结果，而事件循环负责在后台处理这些任务。
@@ -29,14 +38,5 @@ class AsyncToolExecutor:
 
         results=await asyncio.gather(*async_tasks) #作用是并发执行多个异步任务，并在所有任务完成后返回它们的结果。通过使用 asyncio.gather()，你可以将一个包含协程对象的可迭代对象（如列表）传递给它，从而同时运行这些协程，而不会阻塞主线程。函数会返回一个包含所有协程结果的列表，保持与输入顺序一致。这种方式允许你高效地处理多个异步操作，提高程序的性能和响应能力。
         return results
-
-    def __del__(self):
-        if hasattr(self,'executor'):
-            self.executor.shutdown(wait=True)
-
-
-
-
-
 
 

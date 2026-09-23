@@ -167,7 +167,7 @@ python eval/bench/run_bench.py --case tk_get --paradigm react
 - `simple`、`react`、`hybrid` 会使用 Pipeline 的工具轴；`plan`、`tot`、`reflection` 当前不调用外部工具。
 - `memory_src/` 已提供多类记忆及 `MemoryTool`；Pipeline 的 `working` memory 当前仅接入 ReAct，`episodic`、`semantic`、`rag` 仍会明确报出未实现。
 - 搜索与真实 Agent 示例需要有效的 LLM 配置；离线测试用于验证工厂、评测环境、上下文和工具组件，不消耗模型调用。
-- `TerminalTool` 只执行允许列表中的直接命令，不通过 shell 运行管道或重定向；可在构造时用 `allowed_commands` 收紧或调整列表。
+- `TerminalTool` 默认只提供 `echo`、`dir` 和工作区内的 `cd`，不通过 shell 运行管道或重定向。需要执行其他程序时，调用方必须通过 `allowed_commands` 显式授权；工作区路径约束不等于完整的操作系统沙箱。
 - Pipeline 对支持统一结果接口的 Agent 使用真实步骤数和工具调用数；旧 Agent 暂时回退到 stdout 估算。
 
 默认离线测试：

@@ -68,7 +68,7 @@ class ContextAwareAgent(MyReActAgent):
             include_task_sections=False,
         )
 
-        while current_step<=self.max_steps:
+        while current_step < self.max_steps:
             current_step+=1
             print(f'\n--- 第{current_step}轮 ---\n')
 
